@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "reporters": ["clear-text", "progress"],
+  "coverageAnalysis": "perTest",
+  "vitest": {
+    "dir": "packages/core"
+  },
+  "mutate": [
+    "packages/core/src/normalize/normalize.ts",
+    "packages/core/src/ingest/index.ts",
+    "packages/core/src/ingest/thriftly.ts",
+    "packages/core/src/ingest/secondlook.ts",
+    "packages/core/src/ingest/reloop.ts",
+    "packages/core/src/rank/rank.ts",
+    "packages/core/src/alert/buildAlert.ts",
+    "packages/core/src/alert/sendAlert.ts",
+    "packages/core/src/score/score.ts",
+    "packages/core/src/score/visionClient.ts"
+  ],
+  "thresholds": {
+    "high": 90,
+    "low": 80,
+    "break": 75
+  }
+}

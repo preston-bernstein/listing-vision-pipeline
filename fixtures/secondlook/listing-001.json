@@ -1,0 +1,14 @@
+{
+  "listingId": "listing-001",
+  "name": "Leather Armchair",
+  "priceUsd": 285.5,
+  "tags": [
+    "furniture",
+    "seating",
+    "vintage"
+  ],
+  "photoUrl": "secondlook/images/listing-001.jpg",
+  "permalink": "https://secondlook.example/p/listing-001",
+  "listedAt": "2024-08-08T14:23:45Z",
+  "details": "Classic mid-century leather armchair in rich cognac brown. Good condition with minor surface wear consistent with age. Comfortable seat depth and supportive back. Dimensions: 32W x 34D x 36H inches."
+}
