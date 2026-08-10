@@ -1,0 +1,10 @@
+{
+  "id": "001",
+  "title": "Vintage Oak Bookshelf",
+  "price_cents": 12500,
+  "category": "furniture",
+  "image_path": "thriftly/images/listing-001.jpg",
+  "source_url": "https://thriftly.example/listings/listing-001",
+  "posted_at": "2024-01-15T10:30:00Z",
+  "description": "Classic oak wood bookshelf with 5 shelves. Great condition, minor wear on edges. Dimensions: 72in H x 36in W x 12in D. Perfect for home library or office."
+}

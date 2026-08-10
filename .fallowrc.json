@@ -1,0 +1,33 @@
+{
+  // This file is JSONC: fallow reads these comments; generic JSON tools may not.
+  "$schema": "./node_modules/fallow/schema.json",
+  "entry": [
+    "packages/core/src/cli/*.ts",
+    "packages/dashboard/server/index.ts",
+    "packages/dashboard/client/src/main.tsx",
+    "eslint.config.js",
+    "packages/dashboard/playwright.config.ts",
+    "packages/dashboard/vite.config.ts",
+    "packages/core/drizzle.config.ts"
+  ],
+  "workspaces": {
+    "patterns": [
+      "packages/*"
+    ]
+  },
+  "duplicates": {
+    // Report every duplicate pair, per project convention — no hiding
+    // pair-only clones.
+    "minOccurrences": 2
+    // Common additions (uncomment to enable):
+    // "ignore": [
+    //   "**/lib/**",          // for repos that publish transpiled output to lib/
+    //   "**/legacy/**",       // for repos with legacy-build artifacts
+    //   "**/__generated__/**", // Relay, GraphQL Code Generator
+    //   "**/generated/**"     // OpenAPI, Protobuf codegen
+    // ]
+  },
+  "rules": {
+    "unused-dependencies": "warn"
+  }
+}
