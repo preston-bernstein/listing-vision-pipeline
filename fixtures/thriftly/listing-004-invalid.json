@@ -1,0 +1,9 @@
+{
+  "id": "004",
+  "title": "Antique Writing Desk",
+  "category": "furniture",
+  "image_path": "thriftly/images/listing-004.jpg",
+  "source_url": "https://thriftly.example/listings/listing-004",
+  "posted_at": "2024-02-10T16:20:00Z",
+  "description": "Mahogany wood writing desk with original hardware. Missing price_cents field for testing rejection logic."
+}
