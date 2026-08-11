@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { DEFAULT_FIXTURES_ROOT } from '../fixturesRoot.js';
 
 /**
  * Vision scoring client.
@@ -22,15 +22,6 @@ const VISION_SCORE_PROMPT =
 
 const DEFAULT_MODEL = 'llava';
 
-/** Directory this module lives in — used to derive a default fixtures root. */
-const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
-
-/**
- * Default fixtures root: `<repo root>/fixtures`.
- * This file lives at `packages/core/src/score/`, so the repo root is four levels up.
- */
-const DEFAULT_FIXTURES_ROOT = path.resolve(MODULE_DIR, '../../../../fixtures');
-
 /** Ollama's native `/api/chat` response shape (the subset we rely on). */
 const OllamaChatResponseSchema = z.object({
   message: z.object({
@@ -50,9 +41,6 @@ const OpenAiChatResponseSchema = z.object({
     )
     .min(1, 'choices must contain at least one entry'),
 });
-
-/** Final, validated vision score: an integer-or-float 0-100. */
-const VisionScoreSchema = z.number().min(0).max(100);
 
 type VisionApiStyle = 'ollama' | 'openai';
 
@@ -206,9 +194,7 @@ async function callOpenAiCompatible(
  * @param imagePath - fixture-relative image path (e.g. "thriftly/images/listing-001.jpg"),
  *   as stored on `NormalizedListing.imagePath`.
  * @param fixturesRoot - directory that `imagePath` is resolved against. Defaults to
- *   `<repo root>/fixtures`, derived from this module's own location via
- *   `import.meta.url` (this file lives at `packages/core/src/score/`, four levels
- *   below the repo root).
+ *   `DEFAULT_FIXTURES_ROOT` (`<repo root>/fixtures`).
  */
 export async function scoreImage(
   imagePath: string,
@@ -225,6 +211,5 @@ export async function scoreImage(
       ? await callOllama(host, model, imageBase64)
       : await callOpenAiCompatible(host, model, imageBase64);
 
-  const score = parseScoreFromText(content);
-  return VisionScoreSchema.parse(score);
+  return parseScoreFromText(content);
 }

@@ -6,7 +6,8 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { alerts, listings } from '../db/schema.js';
 import { buildAlert, type AlertListing } from './buildAlert.js';
-import { sendAlert, type Db } from './sendAlert.js';
+import { sendAlert } from './sendAlert.js';
+import type { AppDb } from '../db/types.js';
 
 // Wrap `node:fs`'s `writeFileSync` in a spy that still calls through to the
 // real implementation, so `sendAlert`'s actual writes (which this suite reads
@@ -36,15 +37,15 @@ const MIGRATIONS_FOLDER = path.resolve(__dirname, '../../drizzle');
 const ALERTS_OUTPUT_DIR = path.resolve('alerts-output');
 
 /** Builds a fresh, isolated in-memory SQLite database with migrations applied. */
-function createTestDb(): Db {
+function createTestDb(): AppDb {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec('PRAGMA foreign_keys = ON');
   const db = drizzle({ client: sqlite });
   migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-  return db as unknown as Db;
+  return db as unknown as AppDb;
 }
 
-async function seedListing(db: Db, id: string, sourceListingId: string): Promise<void> {
+async function seedListing(db: AppDb, id: string, sourceListingId: string): Promise<void> {
   await db.insert(listings).values({
     id,
     source: 'thriftly',
@@ -147,7 +148,7 @@ describe('buildAlert', () => {
 });
 
 describe('sendAlert', () => {
-  let db: Db;
+  let db: AppDb;
   let fetchSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -231,5 +232,26 @@ describe('sendAlert', () => {
 
     const rows = await db.select().from(alerts).where(eq(alerts.listingId, listingId));
     expect(rows[0].dryRun).toBe(0);
+  });
+
+  it('with liveSend true and a non-ok Telegram response, throws and writes neither the output file nor an alerts row (so a retry is never blocked)', async () => {
+    const listingId = 'thriftly:live-send-fail-1';
+    await seedListing(db, listingId, 'live-send-fail-1');
+    const payload = buildAlert(buildTestListing({ id: listingId, score: 90 }), 80, 'chat-123')!;
+
+    fetchSpy.mockResolvedValue(new Response('bad request', { status: 400 }));
+
+    await expect(
+      sendAlert(db, { id: listingId }, payload, {
+        liveSend: true,
+        telegramBotToken: 'test-token',
+      }),
+    ).rejects.toThrow(/Telegram send failed.*status 400/);
+
+    const outputPath = path.join(ALERTS_OUTPUT_DIR, 'thriftly__live-send-fail-1.json');
+    expect(fs.existsSync(outputPath)).toBe(false);
+
+    const rows = await db.select().from(alerts).where(eq(alerts.listingId, listingId));
+    expect(rows).toHaveLength(0);
   });
 });

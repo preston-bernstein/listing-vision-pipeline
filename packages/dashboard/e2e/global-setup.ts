@@ -35,8 +35,10 @@ export async function seedDatabase(): Promise<void> {
   const { listings, scores } = await import("../../core/src/db/schema.js");
   const { runIngest } = await import("../../core/src/ingest/index.js");
 
-  const fixturesRoot = resolve(__dirname, "../../../fixtures");
-  const { succeeded } = await runIngest(fixturesRoot);
+  // No fixturesRoot arg needed — runIngest's own default (DEFAULT_FIXTURES_ROOT,
+  // derived from core/src/fixturesRoot.ts's own location) already resolves to
+  // <repo root>/fixtures regardless of which package imports it.
+  const { succeeded } = await runIngest();
 
   const fakeScores = [82, 91, 67, 74, 58, 95, 63, 88, 70];
   for (let i = 0; i < succeeded.length; i++) {

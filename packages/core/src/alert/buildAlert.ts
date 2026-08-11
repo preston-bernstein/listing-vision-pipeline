@@ -27,7 +27,7 @@ const usdFormatter = new Intl.NumberFormat("en-US", {
   currency: "USD",
 });
 
-function formatPriceCents(priceCents: number): string {
+export function formatPriceCents(priceCents: number): string {
   return usdFormatter.format(priceCents / 100);
 }
 

@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { NormalizedListingSchema } from '../schema/normalized.js';
 import { scoreListing } from '../score/score.js';
+import type { AppDb } from '../db/types.js';
 
 /**
  * CLI entry point for the `score` stage. Run via `tsx src/cli/score.ts`.
@@ -53,13 +54,11 @@ function requireVisionApiStyle(value: string | undefined): 'ollama' | 'openai' {
   return value;
 }
 
-/** Reads and validates the three required env vars, or exits the process. */
-function requireEnv(): { databaseUrl: string; ollamaHost: string; visionApiStyle: 'ollama' | 'openai' } {
-  return {
-    databaseUrl: requireNonEmpty('DATABASE_URL', process.env.DATABASE_URL),
-    ollamaHost: requireNonEmpty('OLLAMA_HOST', process.env.OLLAMA_HOST),
-    visionApiStyle: requireVisionApiStyle(process.env.VISION_API_STYLE),
-  };
+/** Validates the three required env vars are present/well-formed, or exits the process. */
+function validateEnv(): void {
+  requireNonEmpty('DATABASE_URL', process.env.DATABASE_URL);
+  requireNonEmpty('OLLAMA_HOST', process.env.OLLAMA_HOST);
+  requireVisionApiStyle(process.env.VISION_API_STYLE);
 }
 
 /** Reads stdin/--in, parses it as JSON, and normalizes it to an array. */
@@ -83,10 +82,14 @@ async function parseInputRecords(): Promise<unknown[]> {
   return Array.isArray(parsed) ? parsed : [parsed];
 }
 
-/** Validates and scores each record, tolerating individually invalid ones. */
-async function scoreAllRecords(db: Parameters<typeof scoreListing>[0], records: unknown[]): Promise<void> {
+/** Validates and scores each record, tolerating individually invalid ones or ones that fail to score. */
+async function scoreAllRecords(
+  db: AppDb,
+  records: unknown[],
+): Promise<{ scoredCount: number; invalidCount: number; failedCount: number }> {
   let scoredCount = 0;
   let invalidCount = 0;
+  let failedCount = 0;
   for (const record of records) {
     const result = NormalizedListingSchema.safeParse(record);
     if (!result.success) {
@@ -94,14 +97,27 @@ async function scoreAllRecords(db: Parameters<typeof scoreListing>[0], records: 
       console.error(`score: skipping invalid record: ${result.error.message}`);
       continue;
     }
-    await scoreListing(db, result.data);
-    scoredCount += 1;
+    try {
+      await scoreListing(db, result.data);
+      scoredCount += 1;
+    } catch (err) {
+      // One bad vision call (network blip, model timeout) shouldn't abort the
+      // whole batch — log it and keep going, mirroring runIngest's per-item
+      // resilience pattern. The caller still exits non-zero if failedCount > 0
+      // (see main() below), so a total vision-endpoint outage is never reported
+      // as a successful run.
+      failedCount += 1;
+      console.error(`score: failed to score ${result.data.id}: ${(err as Error).message}`);
+    }
   }
-  console.error(`score: done — scored ${scoredCount} listing(s), skipped ${invalidCount} invalid record(s)`);
+  console.error(
+    `score: done — scored ${scoredCount} listing(s), skipped ${invalidCount} invalid record(s), failed ${failedCount} listing(s)`,
+  );
+  return { scoredCount, invalidCount, failedCount };
 }
 
 async function main(): Promise<void> {
-  requireEnv();
+  validateEnv();
   const records = await parseInputRecords();
 
   // Imported dynamically so the env checks above run — and can fail fast —
@@ -109,10 +125,13 @@ async function main(): Promise<void> {
   // SQLite file at DATABASE_URL.
   const { db } = await import('../db/client.js');
 
-  await scoreAllRecords(db, records);
+  const { failedCount } = await scoreAllRecords(db, records);
+  if (failedCount > 0) {
+    process.exitCode = 1;
+  }
 }
 
 main().catch((err) => {
   console.error(`score: fatal error: ${(err as Error).message}`);
-  process.exit(1);
+  process.exitCode = 1;
 });

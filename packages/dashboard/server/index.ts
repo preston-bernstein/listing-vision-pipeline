@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { eq } from "drizzle-orm";
@@ -8,16 +7,7 @@ import { z } from "zod";
 import { db } from "../../core/src/db/client.js";
 import { listings, scores, SOURCES } from "../../core/src/db/schema.js";
 import { getRankedListings } from "../../core/src/rank/rank.js";
-
-/** Directory this module lives in — used to derive the fixtures root. */
-const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
-
-/**
- * Fixtures root: `<repo root>/fixtures`. This file lives at
- * `packages/dashboard/server/`, so the repo root is three levels up.
- * Matches the convention in packages/core/src/score/visionClient.ts.
- */
-const FIXTURES_ROOT = path.resolve(MODULE_DIR, "../../../fixtures");
+import { DEFAULT_FIXTURES_ROOT } from "../../core/src/fixturesRoot.js";
 
 export const app = new Hono();
 
@@ -99,11 +89,12 @@ app.get("/api/images/:listingId", async (c) => {
     return c.json({ error: "not found" }, 404);
   }
 
-  const fullPath = path.join(FIXTURES_ROOT, listing.imagePath);
+  const fullPath = path.join(DEFAULT_FIXTURES_ROOT, listing.imagePath);
   let bytes: Buffer;
   try {
     bytes = await readFile(fullPath);
-  } catch {
+  } catch (err) {
+    console.error(`images: read failed for ${fullPath}:`, err);
     return c.json({ error: "not found" }, 404);
   }
 

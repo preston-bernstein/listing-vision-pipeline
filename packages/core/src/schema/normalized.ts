@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
 /**
+ * The three demo listing sources. Canonical declaration — every other module that needs
+ * this list (the DB `source` column enum/CHECK, the ingest orchestrator's per-source loop,
+ * `normalize()`'s `Source` type) imports it from here rather than re-declaring it.
+ */
+export const SOURCES = ['thriftly', 'secondlook', 'reloop'] as const;
+
+/**
  * Normalized listing schema.
  *
  * Represents a standardized listing across different sources (thriftly, secondlook, reloop).
@@ -16,7 +23,7 @@ export const NormalizedListingSchema = z.object({
     }),
 
   // Source platform identifier
-  source: z.enum(['thriftly', 'secondlook', 'reloop']),
+  source: z.enum(SOURCES),
 
   // Listing ID from the source platform
   sourceListingId: z.string().min(1, 'sourceListingId must not be empty'),

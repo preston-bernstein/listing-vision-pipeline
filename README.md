@@ -122,7 +122,7 @@ All config lives in `.env`. See [`.env.example`](.env.example).
 | Variable | Default | Description |
 |---|---|---|
 | `OLLAMA_HOST` | `http://localhost:11434` | Base URL of the vision-scoring endpoint the `score` stage calls. Validated at startup as a well-formed `http://` or `https://` URL. |
-| `DATABASE_URL` | `file:./data/app.db` | Path to the local SQLite database file. |
+| `DATABASE_URL` | `file:./data/app.db` | Path to the local SQLite database file. Only `db/client.ts`'s own fallback treats this as optional — the `score`, `rank`, and `alert` CLI stages all require it to be set (fail fast with a clear error otherwise). Nothing in this repo auto-loads `.env` into the process environment (no `dotenv` dependency), so `cp .env.example .env` alone is not enough — see "Running the pipeline" below. |
 | `VISION_API_STYLE` | `ollama` | Request shape sent to `OLLAMA_HOST`: `ollama` for `/api/chat`, `openai` for `/v1/chat/completions`. |
 | `ALERT_SCORE_THRESHOLD` | `70` | Minimum aggregate score (0-100) a listing needs to trigger an alert. |
 | `ALERT_LIVE_SEND` | `false` | When `true`, the `alert` stage also sends the payload to the Telegram Bot API. Defaults to dry-run: payload written to disk, zero network calls. |
@@ -135,7 +135,13 @@ Each stage is a CLI script under `packages/core/src/cli/`, executed with
 `tsx` through an npm workspace command. Run them in order — each reads
 what the previous stage wrote to the database.
 
+Nothing in this repo loads `.env` into the process automatically, so export
+its variables into your shell first (`cp .env.example .env` on its own is
+not enough):
+
 ```bash
+set -a; source .env; set +a
+
 npm run ingest -w core   # parse fixtures/, validate with Zod, print normalized records
 npm run score -w core    # read each listing's image, score it via OLLAMA_HOST, store the result
 npm run rank -w core     # print listings ordered by descending score

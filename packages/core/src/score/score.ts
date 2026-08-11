@@ -1,17 +1,7 @@
-import type { NodeSQLiteDatabase } from 'drizzle-orm/node-sqlite';
 import { listings, scores } from '../db/schema.js';
+import type { AppDb } from '../db/types.js';
 import type { NormalizedListing } from '../schema/normalized.js';
 import { scoreImage } from './visionClient.js';
-
-/**
- * Score-stage orchestrator.
- *
- * Type-only reference to the drizzle db shape — deliberately not importing
- * `../db/client.js` (which opens/creates a SQLite file as a module-load side
- * effect) so this module stays testable against a caller-supplied in-memory
- * or temp-file database instead of the real `DATABASE_URL`.
- */
-export type ScoreDb = NodeSQLiteDatabase;
 
 /**
  * Scores a single normalized listing's image via the vision client, then
@@ -24,7 +14,7 @@ export type ScoreDb = NodeSQLiteDatabase;
  * own default (`<repo root>/fixtures`, derived from its own module location).
  */
 export async function scoreListing(
-  db: ScoreDb,
+  db: AppDb,
   listing: NormalizedListing,
   fixturesRoot?: string,
 ): Promise<void> {

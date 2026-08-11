@@ -1,15 +1,7 @@
 import { desc, eq, sql } from "drizzle-orm";
-import type { db as dbClient } from "../db/client.js";
 import { listings, scores, SOURCES } from "../db/schema.js";
+import type { AppDb } from "../db/types.js";
 import { z } from "zod";
-
-/**
- * Any Drizzle database handle capable of running the rank query — matches the
- * shape of the `db` export from `../db/client.js` without importing its concrete
- * type, so this function also works against an in-memory/test database built the
- * same way (`drizzle({ client: new DatabaseSync(":memory:") })`).
- */
-export type RankDb = typeof dbClient;
 
 const rankOptionsSchema = z.object({
   limit: z.number().int().min(1).max(1000).default(50),
@@ -36,7 +28,7 @@ export interface RankedListing {
  * call site.
  */
 export async function getRankedListings(
-  db: RankDb,
+  db: AppDb,
   opts?: RankOptions,
 ): Promise<RankedListing[]> {
   const { limit, source } = rankOptionsSchema.parse(opts ?? {});

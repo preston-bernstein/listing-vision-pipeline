@@ -8,8 +8,9 @@ import {
   text,
   unique,
 } from "drizzle-orm/sqlite-core";
+import { SOURCES } from "../schema/normalized.js";
 
-export const SOURCES = ["thriftly", "secondlook", "reloop"] as const;
+export { SOURCES };
 
 /**
  * `listings` — one row per source listing, keyed by `${source}:${sourceListingId}`.
@@ -42,6 +43,8 @@ export const listings = sqliteTable(
       table.sourceListingId,
     ),
     index("idx_listings_source").on(table.source),
+    // Keep this literal in sync with SOURCES (imported above) — sql`` template
+    // interpolation isn't safe for raw identifier/enum-list SQL text like a CHECK body.
     check(
       "listings_source_check",
       sql`${table.source} IN ('thriftly','secondlook','reloop')`,

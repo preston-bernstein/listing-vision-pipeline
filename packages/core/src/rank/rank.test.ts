@@ -4,7 +4,8 @@ import { drizzle } from 'drizzle-orm/node-sqlite';
 import { migrate } from 'drizzle-orm/node-sqlite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { listings, scores } from '../db/schema.js';
-import { getRankedListings, type RankDb } from './rank.js';
+import { getRankedListings } from './rank.js';
+import type { AppDb } from '../db/types.js';
 
 // `node:sqlite`-only builtins (no bare, unprefixed alias) trip up this
 // project's Vite/vitest version's static-import builtin detection when
@@ -17,12 +18,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_FOLDER = path.resolve(__dirname, '../../drizzle');
 
 /** Builds a fresh, isolated in-memory SQLite database with migrations applied. */
-function createTestDb(): RankDb {
+function createTestDb(): AppDb {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec('PRAGMA foreign_keys = ON');
   const db = drizzle({ client: sqlite });
   migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-  return db as unknown as RankDb;
+  return db as unknown as AppDb;
 }
 
 interface SeedListing {
@@ -36,11 +37,11 @@ interface SeedListing {
   postedAt: string;
 }
 
-async function seedListing(db: RankDb, listing: SeedListing): Promise<void> {
+async function seedListing(db: AppDb, listing: SeedListing): Promise<void> {
   await db.insert(listings).values(listing);
 }
 
-async function seedScore(db: RankDb, listingId: string, score: number): Promise<void> {
+async function seedScore(db: AppDb, listingId: string, score: number): Promise<void> {
   await db.insert(scores).values({
     listingId,
     imagePath: 'fixture.jpg',
@@ -49,7 +50,7 @@ async function seedScore(db: RankDb, listingId: string, score: number): Promise<
 }
 
 describe('getRankedListings', () => {
-  let db: RankDb;
+  let db: AppDb;
 
   beforeEach(async () => {
     db = createTestDb();

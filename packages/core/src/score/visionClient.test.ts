@@ -1,10 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { scoreImage } from './visionClient.js';
+import { DEFAULT_FIXTURES_ROOT as FIXTURES_ROOT } from '../fixturesRoot.js';
 
-const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
-const FIXTURES_ROOT = path.resolve(MODULE_DIR, '../../../../fixtures');
 const REAL_IMAGE_PATH = 'thriftly/images/listing-001.jpg';
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {

@@ -3,18 +3,13 @@ import {
   type SecondLookRaw,
   type ReloopRaw,
 } from '../schema/raw.js';
-import { NormalizedListingSchema, type NormalizedListing } from '../schema/normalized.js';
+import {
+  NormalizedListingSchema,
+  SOURCES,
+  type NormalizedListing,
+} from '../schema/normalized.js';
 
-export type Source = 'thriftly' | 'secondlook' | 'reloop';
-
-// Discriminated union pairing each source with its own raw shape — kept as a named export
-// (rather than only accepting two loose args) so the Task 9 ingest orchestrator can build
-// `SourceRecord[]` batches and dispatch them through a single `normalize(input)`-shaped call
-// if it prefers that over the two-arg form; `normalize()` below accepts either.
-export type SourceRecord =
-  | { source: 'thriftly'; raw: ThriftlyRaw }
-  | { source: 'secondlook'; raw: SecondLookRaw }
-  | { source: 'reloop'; raw: ReloopRaw };
+export type Source = (typeof SOURCES)[number];
 
 /**
  * Parses a Reloop price string (e.g. "$450.00", "450.00", "$1,200.00") into a dollar amount.
@@ -107,30 +102,23 @@ function normalizeReloop(raw: ReloopRaw): NormalizedListing {
 
 /**
  * Normalizes a raw listing from any of the three fixture sources into the shared
- * NormalizedListingSchema shape. Accepts either the two-arg form (source, raw) or a single
- * SourceRecord object, since callers (e.g. the Task 9 ingest orchestrator) may prefer either.
- * The final object is always run through NormalizedListingSchema.parse(...) so a mapping bug
- * fails loudly with a Zod error instead of silently producing a malformed record.
+ * NormalizedListingSchema shape. The final object is always run through
+ * NormalizedListingSchema.parse(...) so a mapping bug fails loudly with a Zod error
+ * instead of silently producing a malformed record.
  */
 export function normalize(source: 'thriftly', raw: ThriftlyRaw): NormalizedListing;
 export function normalize(source: 'secondlook', raw: SecondLookRaw): NormalizedListing;
 export function normalize(source: 'reloop', raw: ReloopRaw): NormalizedListing;
-export function normalize(input: SourceRecord): NormalizedListing;
 export function normalize(
-  sourceOrInput: Source | SourceRecord,
-  raw?: ThriftlyRaw | SecondLookRaw | ReloopRaw,
+  source: Source,
+  raw: ThriftlyRaw | SecondLookRaw | ReloopRaw,
 ): NormalizedListing {
-  const record: SourceRecord =
-    typeof sourceOrInput === 'string'
-      ? ({ source: sourceOrInput, raw } as SourceRecord)
-      : sourceOrInput;
-
-  switch (record.source) {
+  switch (source) {
     case 'thriftly':
-      return normalizeThriftly(record.raw);
+      return normalizeThriftly(raw as ThriftlyRaw);
     case 'secondlook':
-      return normalizeSecondLook(record.raw);
+      return normalizeSecondLook(raw as SecondLookRaw);
     case 'reloop':
-      return normalizeReloop(record.raw);
+      return normalizeReloop(raw as ReloopRaw);
   }
 }
