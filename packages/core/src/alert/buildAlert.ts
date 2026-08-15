@@ -1,3 +1,5 @@
+import { formatPriceCents } from '../format.js';
+
 /**
  * Builds a Telegram `sendMessage`-shaped payload for a listing that has cleared
  * the alert score threshold. Returns `null` when the listing's score is below
@@ -19,23 +21,14 @@ export interface AlertListing {
 export interface TelegramAlertPayload {
   chat_id: string;
   text: string;
-  parse_mode: "HTML";
-}
-
-const usdFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-});
-
-export function formatPriceCents(priceCents: number): string {
-  return usdFormatter.format(priceCents / 100);
+  parse_mode: 'HTML';
 }
 
 function escapeHtml(value: string): string {
   return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 export function buildAlert(
@@ -52,11 +45,11 @@ export function buildAlert(
     `Price: ${formatPriceCents(listing.priceCents)}`,
     `Score: ${listing.score}`,
     `<a href="${escapeHtml(listing.sourceUrl)}">View listing</a>`,
-  ].join("\n");
+  ].join('\n');
 
   return {
     chat_id: chatId,
     text,
-    parse_mode: "HTML",
+    parse_mode: 'HTML',
   };
 }

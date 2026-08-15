@@ -35,6 +35,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error(`ingest: fatal error: ${(err as Error).message}`);
+  console.error('ingest: fatal error:', err);
   process.exitCode = 1;
 });

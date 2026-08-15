@@ -34,15 +34,18 @@ function parseLiveSend(raw: string | undefined): boolean {
   return raw === 'true';
 }
 
-/** Env-derived config for a single alert run, or exits the process if DATABASE_URL is missing. */
+/**
+ * Env-derived config for a single alert run, or exits the process if DATABASE_URL is missing.
+ * `main()` gets the actual DB handle from a separate dynamic `import('../db/client.js')` (which
+ * reads DATABASE_URL itself) — this function only checks the var is set before that import
+ * runs, so the value itself isn't part of the returned config.
+ */
 function readAlertConfig() {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
+  if (!process.env.DATABASE_URL) {
     console.error('alert: DATABASE_URL environment variable is not set');
     return process.exit(1);
   }
   return {
-    databaseUrl,
     threshold: parseThreshold(process.env.ALERT_SCORE_THRESHOLD),
     liveSend: parseLiveSend(process.env.ALERT_LIVE_SEND),
     telegramBotToken: process.env.TELEGRAM_BOT_TOKEN,
@@ -170,6 +173,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error(`alert: fatal error: ${(err as Error).message}`);
+  console.error('alert: fatal error:', err);
   process.exitCode = 1;
 });

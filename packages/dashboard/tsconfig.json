@@ -13,7 +13,7 @@
     "noUnusedParameters": false
   },
   "include": [
-    "src/**/*",
+    "client/src/**/*",
     "server/**/*"
   ],
   "exclude": [

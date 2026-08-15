@@ -36,20 +36,18 @@ export async function scoreListing(
     description: listing.description ?? null,
   };
 
+  // Every column except the three identity fields (id, source, sourceListingId — the
+  // upsert's own conflict target) is updatable on a re-score. Destructuring them out and
+  // updating with everything else means adding a new listing field can't silently miss
+  // this list the way a hand-restated one could.
+  const { id: _id, source: _source, sourceListingId: _sourceListingId, ...updatable } = listingValues;
+
   await db
     .insert(listings)
     .values(listingValues)
     .onConflictDoUpdate({
       target: [listings.source, listings.sourceListingId],
-      set: {
-        title: listingValues.title,
-        priceCents: listingValues.priceCents,
-        category: listingValues.category,
-        imagePath: listingValues.imagePath,
-        sourceUrl: listingValues.sourceUrl,
-        postedAt: listingValues.postedAt,
-        description: listingValues.description,
-      },
+      set: updatable,
     });
 
   await db.insert(scores).values({

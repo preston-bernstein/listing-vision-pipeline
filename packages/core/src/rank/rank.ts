@@ -1,10 +1,20 @@
-import { desc, eq, sql } from "drizzle-orm";
-import { listings, scores, SOURCES } from "../db/schema.js";
-import type { AppDb } from "../db/types.js";
-import { z } from "zod";
+import { desc, eq, sql } from 'drizzle-orm';
+import { listings, scores } from '../db/schema.js';
+import { SOURCES, type Source } from '../schema/normalized.js';
+import type { AppDb } from '../db/types.js';
+import { z } from 'zod';
+
+/** `limit` bounds shared with the dashboard server's own query-param validation
+ * (`packages/dashboard/server/index.ts`), so the two can't silently drift apart. */
+export const RANK_LIMIT_BOUNDS = { min: 1, max: 1000, default: 50 } as const;
 
 const rankOptionsSchema = z.object({
-  limit: z.number().int().min(1).max(1000).default(50),
+  limit: z
+    .number()
+    .int()
+    .min(RANK_LIMIT_BOUNDS.min)
+    .max(RANK_LIMIT_BOUNDS.max)
+    .default(RANK_LIMIT_BOUNDS.default),
   source: z.enum(SOURCES).optional(),
 });
 
@@ -13,7 +23,7 @@ export type RankOptions = z.input<typeof rankOptionsSchema>;
 export interface RankedListing {
   rank: number;
   id: string;
-  source: (typeof SOURCES)[number];
+  source: Source;
   title: string;
   priceCents: number;
   imagePath: string;
@@ -42,7 +52,7 @@ export async function getRankedListings(
       title: listings.title,
       priceCents: listings.priceCents,
       imagePath: listings.imagePath,
-      score: maxScore.as("score"),
+      score: maxScore.as('score'),
     })
     .from(listings)
     .innerJoin(scores, eq(scores.listingId, listings.id))

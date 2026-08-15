@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { NormalizedListingSchema } from '../schema/normalized.js';
 import { scoreListing } from '../score/score.js';
+import { validateVisionEnv } from '../score/visionClient.js';
 import type { AppDb } from '../db/types.js';
 
 /**
@@ -46,29 +47,39 @@ function requireNonEmpty(name: string, value: string | undefined): string {
   return value;
 }
 
-function requireVisionApiStyle(value: string | undefined): 'ollama' | 'openai' {
-  if (value !== 'ollama' && value !== 'openai') {
-    console.error("score: VISION_API_STYLE environment variable must be 'ollama' or 'openai'");
-    return process.exit(1);
-  }
-  return value;
-}
-
-/** Validates the three required env vars are present/well-formed, or exits the process. */
+/**
+ * Validates DATABASE_URL is set, and delegates OLLAMA_HOST/VISION_API_STYLE validation to
+ * visionClient's own well-formed-URL check (see validateVisionEnv) rather than re-checking a
+ * looser copy of the same rules here — this failed fast with a clear message even before the
+ * per-record resilience in scoreAllRecords was added, and delegating keeps it that way instead
+ * of degrading to one identical failure per listing.
+ */
 function validateEnv(): void {
   requireNonEmpty('DATABASE_URL', process.env.DATABASE_URL);
-  requireNonEmpty('OLLAMA_HOST', process.env.OLLAMA_HOST);
-  requireVisionApiStyle(process.env.VISION_API_STYLE);
+  try {
+    validateVisionEnv();
+  } catch (err) {
+    console.error(`score: ${(err as Error).message}`);
+    process.exit(1);
+  }
 }
 
-/** Reads stdin/--in, parses it as JSON, and normalizes it to an array. */
-async function parseInputRecords(): Promise<unknown[]> {
+/**
+ * Reads stdin/--in, parses it as JSON, and normalizes it to an array, or returns `null` and
+ * sets a non-zero exit code on empty/malformed input. Uses `process.exitCode` rather than
+ * `process.exit()` (unlike the env-validation helpers above, which run before any stdout is
+ * written) so buffered output has a chance to flush — this repo's documented primary usage is
+ * a pipe (`npm run ingest -w core | npm run score -w core`), where a hard `process.exit()`
+ * risks truncating the very stderr message just written.
+ */
+async function parseInputRecords(): Promise<unknown[] | null> {
   const raw = await readInput();
   if (!raw.trim()) {
     console.error(
       'score: no input received (expected a JSON array of normalized listings on stdin, or via --in <file>)',
     );
-    process.exit(1);
+    process.exitCode = 1;
+    return null;
   }
 
   let parsed: unknown;
@@ -76,7 +87,8 @@ async function parseInputRecords(): Promise<unknown[]> {
     parsed = JSON.parse(raw);
   } catch (err) {
     console.error(`score: failed to parse input as JSON: ${(err as Error).message}`);
-    process.exit(1);
+    process.exitCode = 1;
+    return null;
   }
 
   return Array.isArray(parsed) ? parsed : [parsed];
@@ -119,6 +131,9 @@ async function scoreAllRecords(
 async function main(): Promise<void> {
   validateEnv();
   const records = await parseInputRecords();
+  if (records === null) {
+    return;
+  }
 
   // Imported dynamically so the env checks above run — and can fail fast —
   // before db/client.js's module-load side effect of opening/creating the
@@ -132,6 +147,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error(`score: fatal error: ${(err as Error).message}`);
+  console.error('score: fatal error:', err);
   process.exitCode = 1;
 });

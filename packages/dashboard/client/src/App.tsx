@@ -1,28 +1,13 @@
 import { useEffect, useState } from 'react';
-
-interface Listing {
-  rank: number;
-  id: string;
-  source: string;
-  title: string;
-  priceCents: number;
-  imagePath: string;
-  score: number;
-}
+import type { RankedListing } from '../../../core/src/rank/rank.js';
+import { formatPriceCents } from '../../../core/src/format.js';
 
 interface ListingsResponse {
-  listings: Listing[];
-}
-
-function formatPrice(priceCents: number): string {
-  return (priceCents / 100).toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  });
+  listings: RankedListing[];
 }
 
 export default function App() {
-  const [listings, setListings] = useState<Listing[]>([]);
+  const [listings, setListings] = useState<RankedListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,7 +70,7 @@ export default function App() {
             <td>{listing.rank}</td>
             <td>{listing.source}</td>
             <td>{listing.title}</td>
-            <td>{formatPrice(listing.priceCents)}</td>
+            <td>{formatPriceCents(listing.priceCents)}</td>
             <td>{listing.score}</td>
             <td>
               <img

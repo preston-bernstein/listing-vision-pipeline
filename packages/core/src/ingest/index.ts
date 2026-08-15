@@ -7,7 +7,7 @@ import { parseSecondLookListing } from './secondlook.js';
 import { parseReloopListing } from './reloop.js';
 import { normalize } from '../normalize/normalize.js';
 import { SOURCES } from '../schema/normalized.js';
-import type { NormalizedListing } from '../schema/normalized.js';
+import type { NormalizedListing, Source } from '../schema/normalized.js';
 import { DEFAULT_FIXTURES_ROOT } from '../fixturesRoot.js';
 
 /**
@@ -21,8 +21,6 @@ import { DEFAULT_FIXTURES_ROOT } from '../fixturesRoot.js';
  * `runIngest()` is a pure library function: no `process.exit`/`process.exitCode` side
  * effects, safe to import from a CLI wrapper (`cli/ingest.ts`) or a test.
  */
-
-type SourceName = (typeof SOURCES)[number];
 
 export interface IngestFailure {
   /** Fixtures-root-relative path of the file that failed, e.g. "thriftly/listing-004-invalid.json". */
@@ -54,7 +52,7 @@ function describeError(err: unknown): string {
 }
 
 /** Dispatches a single listing file to its source's parser, then normalizes the result. */
-async function parseAndNormalize(source: SourceName, filePath: string): Promise<NormalizedListing> {
+async function parseAndNormalize(source: Source, filePath: string): Promise<NormalizedListing> {
   switch (source) {
     case 'thriftly': {
       const raw = await parseThriftlyListing(filePath);

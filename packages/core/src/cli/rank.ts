@@ -1,5 +1,5 @@
 import { getRankedListings } from '../rank/rank.js';
-import { formatPriceCents } from '../alert/buildAlert.js';
+import { formatPriceCents } from '../format.js';
 
 async function main(): Promise<void> {
   if (!process.env.DATABASE_URL) {

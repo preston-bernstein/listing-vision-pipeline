@@ -7,6 +7,10 @@ import { z } from 'zod';
  */
 export const SOURCES = ['thriftly', 'secondlook', 'reloop'] as const;
 
+/** One of the three demo listing sources. Derived from `SOURCES` — the single name for this
+ * concept, imported everywhere it's needed rather than re-declared under a different name. */
+export type Source = (typeof SOURCES)[number];
+
 /**
  * Normalized listing schema.
  *

@@ -4,14 +4,6 @@
   "description": "Dashboard UI for the listing vision pipeline",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

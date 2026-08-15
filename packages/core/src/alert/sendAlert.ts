@@ -1,23 +1,23 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { eq } from "drizzle-orm";
-import { alerts } from "../db/schema.js";
-import type { AppDb } from "../db/types.js";
-import type { AlertListing, TelegramAlertPayload } from "./buildAlert.js";
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { eq } from 'drizzle-orm';
+import { alerts } from '../db/schema.js';
+import type { AppDb } from '../db/types.js';
+import type { AlertListing, TelegramAlertPayload } from './buildAlert.js';
 
 export interface SendAlertOptions {
   liveSend: boolean;
   telegramBotToken?: string;
 }
 
-const ALERTS_OUTPUT_DIR = "alerts-output";
+const ALERTS_OUTPUT_DIR = 'alerts-output';
 
 /**
  * Sanitizes a listing id (e.g. `thriftly:abc123`) for safe use as a filename by
  * replacing path-hostile `:` characters.
  */
 function sanitizeIdForFilename(id: string): string {
-  return id.replace(/:/g, "__");
+  return id.replace(/:/g, '__');
 }
 
 /**
@@ -38,7 +38,7 @@ function sanitizeIdForFilename(id: string): string {
  */
 export async function sendAlert(
   db: AppDb,
-  listing: Pick<AlertListing, "id">,
+  listing: Pick<AlertListing, 'id'>,
   payload: TelegramAlertPayload,
   opts: SendAlertOptions,
 ): Promise<void> {
@@ -57,13 +57,13 @@ export async function sendAlert(
     const response = await fetch(
       `https://api.telegram.org/bot${opts.telegramBotToken}/sendMessage`,
       {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       },
     );
     if (!response.ok) {
-      const body = await response.text().catch(() => "<unreadable response body>");
+      const body = await response.text().catch(() => '<unreadable response body>');
       throw new Error(
         `alert: Telegram send failed for ${listing.id} with status ${response.status}: ${body}`,
       );
@@ -98,5 +98,5 @@ export async function sendAlert(
     throw err;
   }
 
-  console.error(`alert: ${listing.id} (${opts.liveSend ? "live-send" : "dry-run"})`);
+  console.error(`alert: ${listing.id} (${opts.liveSend ? 'live-send' : 'dry-run'})`);
 }

@@ -14,16 +14,16 @@
 // secret: the values below aren't sensitive on their own, the point is only
 // that a naive grep of this file shouldn't trip over its own pattern list.
 
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 // --- Pattern groups -------------------------------------------------------
 
 // Private-network addresses / Tailscale CGNAT range / internal broker ports.
 // Built from fragments (see file header) rather than literal regex sources.
-const dot = (parts) => parts.join(".").replace(/\./g, "\\.");
-const TEN_NET_SOURCE = dot(["10", "0", "0", ""]);
-const RFC1918_B_SOURCE = dot(["192", "168", ""]);
+const dot = (parts) => parts.join('.').replace(/\./g, '\\.');
+const TEN_NET_SOURCE = dot(['10', '0', '0', '']);
+const RFC1918_B_SOURCE = dot(['192', '168', '']);
 const RFC1918_C = /172\.(1[6-9]|2[0-9]|3[01])\./;
 const CGNAT_RANGE = /100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./;
 const INTERNAL_PORT_BASE = 11430;
@@ -40,7 +40,7 @@ const PRIVATE_NETWORK_PATTERNS = [
 // Internal package name that must never appear in the public mirror.
 // Split across a concatenation so this file doesn't itself contain the
 // contiguous literal.
-const INTERNAL_PACKAGE_NAME = ["scraper", "commons"].join("-");
+const INTERNAL_PACKAGE_NAME = ['scraper', 'commons'].join('-');
 const INTERNAL_PACKAGE_PATTERNS = [new RegExp(INTERNAL_PACKAGE_NAME)];
 
 // Real marketplace / resale site names — case-insensitive. Each name is
@@ -48,25 +48,25 @@ const INTERNAL_PACKAGE_PATTERNS = [new RegExp(INTERNAL_PACKAGE_NAME)];
 // above: this array is the canonical denylist, so it must exist somewhere,
 // but its own source line shouldn't contain a whole matchable name.
 const MARKETPLACE_NAME_FRAGMENTS = [
-  ["eb", "ay"],
-  ["craigs", "list"],
-  ["merc", "ari"],
-  ["posh", "mark"],
-  ["de", "pop"],
-  ["offer", "up"],
-  ["let", "go"],
-  ["thred", "up"],
-  ["grail", "ed"],
-  ["vestia", "ire"],
-  ["chair", "ish"],
-  ["kai", "yo"],
-  ["facebook ", "marketplace"],
-  ["fb", "marketplace"],
-  ["next", "door"],
+  ['eb', 'ay'],
+  ['craigs', 'list'],
+  ['merc', 'ari'],
+  ['posh', 'mark'],
+  ['de', 'pop'],
+  ['offer', 'up'],
+  ['let', 'go'],
+  ['thred', 'up'],
+  ['grail', 'ed'],
+  ['vestia', 'ire'],
+  ['chair', 'ish'],
+  ['kai', 'yo'],
+  ['facebook ', 'marketplace'],
+  ['fb', 'marketplace'],
+  ['next', 'door'],
 ];
-const MARKETPLACE_NAMES = MARKETPLACE_NAME_FRAGMENTS.map((parts) => parts.join(""));
+const MARKETPLACE_NAMES = MARKETPLACE_NAME_FRAGMENTS.map((parts) => parts.join(''));
 const MARKETPLACE_PATTERNS = MARKETPLACE_NAMES.map(
-  (name) => new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
+  (name) => new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
 );
 
 const ALL_PATTERNS = [
@@ -79,40 +79,40 @@ const ALL_PATTERNS = [
 // this list gets scanned as text, including dotfiles with no extension
 // (e.g. a stray .env that was accidentally tracked).
 const BINARY_EXTENSION_DENYLIST = new Set([
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".gif",
-  ".ico",
-  ".webp",
-  ".pdf",
-  ".zip",
-  ".db",
-  ".sqlite",
-  ".woff",
-  ".woff2",
-  ".ttf",
-  ".eot",
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.ico',
+  '.webp',
+  '.pdf',
+  '.zip',
+  '.db',
+  '.sqlite',
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.eot',
 ]);
 
 function git(args) {
-  return execFileSync("git", args, {
-    encoding: "utf8",
+  return execFileSync('git', args, {
+    encoding: 'utf8',
     maxBuffer: 1024 * 1024 * 1024,
   });
 }
 
 function extensionOf(path) {
-  const base = path.slice(path.lastIndexOf("/") + 1);
-  const dot = base.lastIndexOf(".");
-  if (dot <= 0) return ""; // no extension, or a dotfile like ".env"
+  const base = path.slice(path.lastIndexOf('/') + 1);
+  const dot = base.lastIndexOf('.');
+  if (dot <= 0) return ''; // no extension, or a dotfile like ".env"
   return base.slice(dot).toLowerCase();
 }
 
 function matchPatterns(text) {
   // Returns [{ pattern, lineNumber, line }] for every match in text.
   const hits = [];
-  const lines = text.split("\n");
+  const lines = text.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     for (const pattern of ALL_PATTERNS) {
@@ -131,7 +131,7 @@ function scanFile(file) {
 
   let content;
   try {
-    content = readFileSync(file, "utf8");
+    content = readFileSync(file, 'utf8');
   } catch {
     // File tracked by git but missing/unreadable on disk — skip silently,
     // nothing to scan.
@@ -145,7 +145,7 @@ function scanFile(file) {
 }
 
 function scanTree() {
-  const files = git(["ls-files"]).split("\n").filter(Boolean);
+  const files = git(['ls-files']).split('\n').filter(Boolean);
   return files.flatMap(scanFile);
 }
 
@@ -153,7 +153,7 @@ function scanTree() {
 
 function listAllRevs() {
   try {
-    return git(["rev-list", "--all"]).split("\n").filter(Boolean);
+    return git(['rev-list', '--all']).split('\n').filter(Boolean);
   } catch {
     return [];
   }
@@ -161,14 +161,14 @@ function listAllRevs() {
 
 function parseOldFileHeader(line) {
   const path = line.slice(4).trim();
-  return path === "/dev/null" ? "(unknown)" : path.replace(/^a\//, "");
+  return path === '/dev/null' ? '(unknown)' : path.replace(/^a\//, '');
 }
 
 function parseNewFileHeader(line, oldFile) {
   const path = line.slice(4).trim();
   // A deletion diff has "+++ /dev/null" — fall back to the old
   // (pre-deletion) path so a removed file still reports its name.
-  return path === "/dev/null" ? oldFile : path.replace(/^b\//, "");
+  return path === '/dev/null' ? oldFile : path.replace(/^b\//, '');
 }
 
 /**
@@ -178,17 +178,17 @@ function parseNewFileHeader(line, oldFile) {
  * caller should scan it as content instead).
  */
 function trackDiffHeader(line, state) {
-  if (line.startsWith("--- ")) {
+  if (line.startsWith('--- ')) {
     return { ...state, oldFile: parseOldFileHeader(line) };
   }
-  if (line.startsWith("+++ ")) {
+  if (line.startsWith('+++ ')) {
     return { ...state, currentFile: parseNewFileHeader(line, state.oldFile) };
   }
   return null;
 }
 
 function isDiffMetadataLine(line) {
-  return line.startsWith("diff --git ") || line.startsWith("index ");
+  return line.startsWith('diff --git ') || line.startsWith('index ');
 }
 
 /** Finds forbidden-pattern hits in one diff content line, tagged with its commit/file. */
@@ -205,7 +205,7 @@ function findMatchesInLine(line, commit, currentFile) {
 /** Scans one commit's `git show` output for forbidden patterns. */
 function getCommitDiffLines(commit) {
   try {
-    return git(["show", "--no-color", "-U0", commit]).split("\n");
+    return git(['show', '--no-color', '-U0', commit]).split('\n');
   } catch {
     return [];
   }
@@ -222,7 +222,7 @@ function scanDiffLine(line, commit, state, matches) {
 
 function scanCommit(commit) {
   const matches = [];
-  let state = { oldFile: "(unknown)", currentFile: "(unknown)" };
+  let state = { oldFile: '(unknown)', currentFile: '(unknown)' };
 
   for (const line of getCommitDiffLines(commit)) {
     state = scanDiffLine(line, commit, state, matches);
@@ -243,7 +243,7 @@ function main() {
   const allMatches = [...treeMatches, ...historyMatches];
 
   if (allMatches.length === 0) {
-    console.log("no forbidden strings found");
+    console.log('no forbidden strings found');
     process.exit(0);
   }
 

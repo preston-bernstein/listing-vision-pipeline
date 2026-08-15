@@ -5,11 +5,9 @@ import {
 } from '../schema/raw.js';
 import {
   NormalizedListingSchema,
-  SOURCES,
   type NormalizedListing,
+  type Source,
 } from '../schema/normalized.js';
-
-export type Source = (typeof SOURCES)[number];
 
 /**
  * Parses a Reloop price string (e.g. "$450.00", "450.00", "$1,200.00") into a dollar amount.

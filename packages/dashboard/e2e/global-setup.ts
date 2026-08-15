@@ -1,9 +1,9 @@
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
-import { rmSync } from "node:fs";
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import { rmSync } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-export const E2E_DB_PATH = resolve(__dirname, ".tmp/e2e.db");
+export const E2E_DB_PATH = resolve(__dirname, '.tmp/e2e.db');
 
 /**
  * Seeds a real SQLite database with a handful of scored listings before the
@@ -31,9 +31,9 @@ export async function seedDatabase(): Promise<void> {
 
   // Dynamic import so DATABASE_URL is set before db/client.ts's module-load
   // side effect (opening the file + running migrations) fires.
-  const { db } = await import("../../core/src/db/client.js");
-  const { listings, scores } = await import("../../core/src/db/schema.js");
-  const { runIngest } = await import("../../core/src/ingest/index.js");
+  const { db } = await import('../../core/src/db/client.js');
+  const { listings, scores } = await import('../../core/src/db/schema.js');
+  const { runIngest } = await import('../../core/src/ingest/index.js');
 
   // No fixturesRoot arg needed — runIngest's own default (DEFAULT_FIXTURES_ROOT,
   // derived from core/src/fixturesRoot.ts's own location) already resolves to
