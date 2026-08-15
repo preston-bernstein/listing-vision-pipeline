@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { DEFAULT_FIXTURES_ROOT } from '../fixturesRoot.js';
 
 /**
  * Vision scoring client.
@@ -22,15 +22,6 @@ const VISION_SCORE_PROMPT =
 
 const DEFAULT_MODEL = 'llava';
 
-/** Directory this module lives in — used to derive a default fixtures root. */
-const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
-
-/**
- * Default fixtures root: `<repo root>/fixtures`.
- * This file lives at `packages/core/src/score/`, so the repo root is four levels up.
- */
-const DEFAULT_FIXTURES_ROOT = path.resolve(MODULE_DIR, '../../../../fixtures');
-
 /** Ollama's native `/api/chat` response shape (the subset we rely on). */
 const OllamaChatResponseSchema = z.object({
   message: z.object({
@@ -50,9 +41,6 @@ const OpenAiChatResponseSchema = z.object({
     )
     .min(1, 'choices must contain at least one entry'),
 });
-
-/** Final, validated vision score: an integer-or-float 0-100. */
-const VisionScoreSchema = z.number().min(0).max(100);
 
 type VisionApiStyle = 'ollama' | 'openai';
 
@@ -104,6 +92,18 @@ function getModel(): string {
 }
 
 /**
+ * Validates `OLLAMA_HOST` and `VISION_API_STYLE` are both present and well-formed, throwing
+ * a single descriptive error on the first problem found. `scoreImage` re-derives both from
+ * the environment on every call anyway (so this doesn't change runtime behavior), but calling
+ * this once up front — e.g. from a CLI's env-validation step — surfaces a malformed value as
+ * one clear fail-fast error instead of one identical failure per scored listing.
+ */
+export function validateVisionEnv(): void {
+  getOllamaHost();
+  getVisionApiStyle();
+}
+
+/**
  * Extracts the first number-like substring from free-text model output and clamps
  * it to the 0-100 range. Throws if no number can be found.
  */
@@ -126,11 +126,40 @@ async function readImageAsBase64(imagePath: string, fixturesRoot: string): Promi
   return bytes.toString('base64');
 }
 
-async function callOllama(host: string, model: string, imageBase64: string): Promise<string> {
-  const response = await fetch(`${host}/api/chat`, {
+/**
+ * POSTs a JSON chat body to `url`, checks `response.ok`, and parses the JSON reply against
+ * `schema`. Shared by `callOllama`/`callOpenAiCompatible` below, which differ only in the
+ * endpoint path, request body shape, response schema, and the label used in the shape-mismatch
+ * error message.
+ */
+async function postChatAndParse<Schema extends z.ZodTypeAny>(
+  url: string,
+  body: unknown,
+  schema: Schema,
+  label: string,
+): Promise<z.infer<Schema>> {
+  const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Vision request to ${url} failed with status ${response.status}`);
+  }
+
+  const json = await response.json();
+  const parsed = schema.safeParse(json);
+  if (!parsed.success) {
+    throw new Error(`Unexpected ${label} vision response shape: ${parsed.error.message}`);
+  }
+  return parsed.data;
+}
+
+async function callOllama(host: string, model: string, imageBase64: string): Promise<string> {
+  const data = await postChatAndParse(
+    `${host}/api/chat`,
+    {
       model,
       messages: [
         {
@@ -140,23 +169,11 @@ async function callOllama(host: string, model: string, imageBase64: string): Pro
         },
       ],
       stream: false,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Vision request to ${host}/api/chat failed with status ${response.status}`,
-    );
-  }
-
-  const json = await response.json();
-  const parsed = OllamaChatResponseSchema.safeParse(json);
-  if (!parsed.success) {
-    throw new Error(
-      `Unexpected Ollama vision response shape: ${parsed.error.message}`,
-    );
-  }
-  return parsed.data.message.content;
+    },
+    OllamaChatResponseSchema,
+    'Ollama',
+  );
+  return data.message.content;
 }
 
 async function callOpenAiCompatible(
@@ -164,10 +181,9 @@ async function callOpenAiCompatible(
   model: string,
   imageBase64: string,
 ): Promise<string> {
-  const response = await fetch(`${host}/v1/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const data = await postChatAndParse(
+    `${host}/v1/chat/completions`,
+    {
       model,
       messages: [
         {
@@ -181,23 +197,11 @@ async function callOpenAiCompatible(
           ],
         },
       ],
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Vision request to ${host}/v1/chat/completions failed with status ${response.status}`,
-    );
-  }
-
-  const json = await response.json();
-  const parsed = OpenAiChatResponseSchema.safeParse(json);
-  if (!parsed.success) {
-    throw new Error(
-      `Unexpected OpenAI-compatible vision response shape: ${parsed.error.message}`,
-    );
-  }
-  return parsed.data.choices[0].message.content;
+    },
+    OpenAiChatResponseSchema,
+    'OpenAI-compatible',
+  );
+  return data.choices[0].message.content;
 }
 
 /**
@@ -206,9 +210,7 @@ async function callOpenAiCompatible(
  * @param imagePath - fixture-relative image path (e.g. "thriftly/images/listing-001.jpg"),
  *   as stored on `NormalizedListing.imagePath`.
  * @param fixturesRoot - directory that `imagePath` is resolved against. Defaults to
- *   `<repo root>/fixtures`, derived from this module's own location via
- *   `import.meta.url` (this file lives at `packages/core/src/score/`, four levels
- *   below the repo root).
+ *   `DEFAULT_FIXTURES_ROOT` (`<repo root>/fixtures`).
  */
 export async function scoreImage(
   imagePath: string,
@@ -225,6 +227,5 @@ export async function scoreImage(
       ? await callOllama(host, model, imageBase64)
       : await callOpenAiCompatible(host, model, imageBase64);
 
-  const score = parseScoreFromText(content);
-  return VisionScoreSchema.parse(score);
+  return parseScoreFromText(content);
 }

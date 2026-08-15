@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
 import { listings, scores } from '../db/schema.js';
 import type { NormalizedListing } from '../schema/normalized.js';
-import type { ScoreDb } from './score.js';
+import type { AppDb } from '../db/types.js';
 
 // Mock the vision client module entirely so `scoreListing` never issues a real
 // network request to OLLAMA_HOST — no `global.fetch` mocking needed, since the
@@ -30,12 +30,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_FOLDER = path.resolve(__dirname, '../../drizzle');
 
 /** Builds a fresh, isolated in-memory SQLite database with migrations applied. */
-function createTestDb(): ScoreDb {
+function createTestDb(): AppDb {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec('PRAGMA foreign_keys = ON');
   const db = drizzle({ client: sqlite });
   migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-  return db as unknown as ScoreDb;
+  return db as unknown as AppDb;
 }
 
 function buildListing(overrides: Partial<NormalizedListing> = {}): NormalizedListing {
@@ -55,7 +55,7 @@ function buildListing(overrides: Partial<NormalizedListing> = {}): NormalizedLis
 }
 
 describe('scoreListing', () => {
-  let db: ScoreDb;
+  let db: AppDb;
   let fetchSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {

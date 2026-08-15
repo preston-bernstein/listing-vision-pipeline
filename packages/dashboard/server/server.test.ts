@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll } from 'vitest';
 
 /**
  * `packages/core/src/db/client.ts` opens its SQLite connection and runs
@@ -13,41 +13,41 @@ import { describe, it, expect, beforeAll } from "vitest";
  * any shared `DATABASE_URL` — vitest runs each test file in its own module
  * graph, so this never collides with another test file's database.
  */
-process.env.DATABASE_URL = ":memory:";
+process.env.DATABASE_URL = ':memory:';
 
-const { app } = await import("./index.js");
-const { db } = await import("../../core/src/db/client.js");
-const { listings, scores } = await import("../../core/src/db/schema.js");
+const { app } = await import('./index.js');
+const { db } = await import('../../core/src/db/client.js');
+const { listings, scores } = await import('../../core/src/db/schema.js');
 
 // Real fixture images (served byte-for-byte by GET /api/images/:listingId,
 // which reads off disk relative to the repo's `fixtures/` root — not the DB).
 const LISTING_A = {
-  id: "thriftly:listing-001",
-  source: "thriftly" as const,
-  sourceListingId: "listing-001",
-  title: "Vintage Oak Bookshelf",
+  id: 'thriftly:listing-001',
+  source: 'thriftly' as const,
+  sourceListingId: 'listing-001',
+  title: 'Vintage Oak Bookshelf',
   priceCents: 12500,
-  category: "furniture",
-  imagePath: "thriftly/images/listing-001.jpg",
-  sourceUrl: "https://thriftly.example/listings/listing-001",
-  postedAt: "2024-01-15T10:30:00Z",
-  description: "A fine bookshelf.",
+  category: 'furniture',
+  imagePath: 'thriftly/images/listing-001.jpg',
+  sourceUrl: 'https://thriftly.example/listings/listing-001',
+  postedAt: '2024-01-15T10:30:00Z',
+  description: 'A fine bookshelf.',
 };
 
 const LISTING_B = {
-  id: "secondlook:listing-002",
-  source: "secondlook" as const,
-  sourceListingId: "listing-002",
-  title: "Brass Floor Mirror",
+  id: 'secondlook:listing-002',
+  source: 'secondlook' as const,
+  sourceListingId: 'listing-002',
+  title: 'Brass Floor Mirror',
   priceCents: 14500,
-  category: "decor",
-  imagePath: "secondlook/images/listing-002.jpg",
-  sourceUrl: "https://secondlook.example/p/listing-002",
-  postedAt: "2024-08-06T16:42:20Z",
-  description: "A fine mirror.",
+  category: 'decor',
+  imagePath: 'secondlook/images/listing-002.jpg',
+  sourceUrl: 'https://secondlook.example/p/listing-002',
+  postedAt: '2024-08-06T16:42:20Z',
+  description: 'A fine mirror.',
 };
 
-const UNKNOWN_ID = "thriftly:does-not-exist";
+const UNKNOWN_ID = 'thriftly:does-not-exist';
 
 beforeAll(async () => {
   await db.insert(listings).values([LISTING_A, LISTING_B]);
@@ -57,7 +57,7 @@ beforeAll(async () => {
       imagePath: LISTING_A.imagePath,
       score: 88,
       // DB-internal debugging column — must never surface in any API response.
-      rawResponse: JSON.stringify({ message: { content: "88" } }),
+      rawResponse: JSON.stringify({ message: { content: '88' } }),
     },
     {
       listingId: LISTING_B.id,
@@ -67,22 +67,22 @@ beforeAll(async () => {
   ]);
 });
 
-describe("GET /health", () => {
-  it("returns 200 { ok: true }", async () => {
-    const res = await app.request("/health");
+describe('GET /health', () => {
+  it('returns 200 { ok: true }', async () => {
+    const res = await app.request('/health');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
   });
 });
 
-describe("GET /api/listings", () => {
-  it("returns 200 with the expected shape and never leaks raw_response", async () => {
-    const res = await app.request("/api/listings");
+describe('GET /api/listings', () => {
+  it('returns 200 with the expected shape and never leaks raw_response', async () => {
+    const res = await app.request('/api/listings');
     expect(res.status).toBe(200);
 
     const rawText = await res.text();
-    expect(rawText).not.toContain("raw_response");
-    expect(rawText).not.toContain("rawResponse");
+    expect(rawText).not.toContain('raw_response');
+    expect(rawText).not.toContain('rawResponse');
 
     const body = JSON.parse(rawText) as { listings: unknown[] };
     expect(Array.isArray(body.listings)).toBe(true);
@@ -111,36 +111,36 @@ describe("GET /api/listings", () => {
     );
   });
 
-  it("filters by a valid source", async () => {
-    const res = await app.request("/api/listings?source=secondlook");
+  it('filters by a valid source', async () => {
+    const res = await app.request('/api/listings?source=secondlook');
     expect(res.status).toBe(200);
     const body = (await res.json()) as { listings: Array<{ id: string }> };
     expect(body.listings).toHaveLength(1);
     expect(body.listings[0]?.id).toBe(LISTING_B.id);
   });
 
-  it("returns 400 for an out-of-range limit", async () => {
-    const res = await app.request("/api/listings?limit=0");
+  it('returns 400 for an out-of-range limit', async () => {
+    const res = await app.request('/api/listings?limit=0');
     expect(res.status).toBe(400);
 
-    const resTooHigh = await app.request("/api/listings?limit=1001");
+    const resTooHigh = await app.request('/api/listings?limit=1001');
     expect(resTooHigh.status).toBe(400);
   });
 
-  it("returns 400 for an unknown source", async () => {
-    const res = await app.request("/api/listings?source=not-a-real-source");
+  it('returns 400 for an unknown source', async () => {
+    const res = await app.request('/api/listings?source=not-a-real-source');
     expect(res.status).toBe(400);
   });
 });
 
-describe("GET /api/listings/:id", () => {
-  it("returns 200 with the listing and its score history for a seeded id", async () => {
+describe('GET /api/listings/:id', () => {
+  it('returns 200 with the listing and its score history for a seeded id', async () => {
     const res = await app.request(`/api/listings/${encodeURIComponent(LISTING_A.id)}`);
     expect(res.status).toBe(200);
 
     const rawText = await res.text();
-    expect(rawText).not.toContain("raw_response");
-    expect(rawText).not.toContain("rawResponse");
+    expect(rawText).not.toContain('raw_response');
+    expect(rawText).not.toContain('rawResponse');
 
     const body = JSON.parse(rawText) as {
       listing: { id: string; title: string };
@@ -154,17 +154,17 @@ describe("GET /api/listings/:id", () => {
     );
   });
 
-  it("returns 404 for an unknown id", async () => {
+  it('returns 404 for an unknown id', async () => {
     const res = await app.request(`/api/listings/${encodeURIComponent(UNKNOWN_ID)}`);
     expect(res.status).toBe(404);
   });
 });
 
-describe("GET /api/images/:listingId", () => {
-  it("returns the fixture image bytes for a seeded listing", async () => {
+describe('GET /api/images/:listingId', () => {
+  it('returns the fixture image bytes for a seeded listing', async () => {
     const res = await app.request(`/api/images/${encodeURIComponent(LISTING_A.id)}`);
     expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toBe("image/jpeg");
+    expect(res.headers.get('content-type')).toBe('image/jpeg');
     const bytes = new Uint8Array(await res.arrayBuffer());
     expect(bytes.length).toBeGreaterThan(0);
     // JPEG magic bytes (0xFF 0xD8).
@@ -172,7 +172,7 @@ describe("GET /api/images/:listingId", () => {
     expect(bytes[1]).toBe(0xd8);
   });
 
-  it("returns 404 for an unknown listing id", async () => {
+  it('returns 404 for an unknown listing id', async () => {
     const res = await app.request(`/api/images/${encodeURIComponent(UNKNOWN_ID)}`);
     expect(res.status).toBe(404);
   });
@@ -181,10 +181,10 @@ describe("GET /api/images/:listingId", () => {
 // The dashboard is read-only end to end: no mutation route is registered
 // anywhere in the app. Hono's fallback handler returns 404 for any
 // unregistered method/path combination, which is exactly what proves it.
-describe("no mutation routes exist anywhere in the app", () => {
-  const mutationMethods = ["POST", "PUT", "PATCH", "DELETE"] as const;
+describe('no mutation routes exist anywhere in the app', () => {
+  const mutationMethods = ['POST', 'PUT', 'PATCH', 'DELETE'] as const;
   const paths = [
-    "/api/listings",
+    '/api/listings',
     `/api/listings/${encodeURIComponent(LISTING_A.id)}`,
     `/api/images/${encodeURIComponent(LISTING_A.id)}`,
   ];

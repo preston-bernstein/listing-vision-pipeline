@@ -1,13 +1,14 @@
-import { readdir, writeFile } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { ZodError } from 'zod';
 
 import { parseThriftlyListing } from './thriftly.js';
 import { parseSecondLookListing } from './secondlook.js';
 import { parseReloopListing } from './reloop.js';
 import { normalize } from '../normalize/normalize.js';
-import type { NormalizedListing } from '../schema/normalized.js';
+import { SOURCES } from '../schema/normalized.js';
+import type { NormalizedListing, Source } from '../schema/normalized.js';
+import { DEFAULT_FIXTURES_ROOT } from '../fixturesRoot.js';
 
 /**
  * Ingest orchestrator.
@@ -17,28 +18,9 @@ import type { NormalizedListing } from '../schema/normalized.js';
  * result, and collects successes/failures. Makes zero HTTP requests — every parser reads
  * only from local disk (see thriftly.ts / secondlook.ts / reloop.ts).
  *
- * This module is dual-purpose:
- *  - `runIngest()` is a pure library function: no `process.exit`/`process.exitCode` side
- *    effects, safe to import from a CLI wrapper (Task 16's `cli/ingest.ts`) or a test.
- *  - The `if (import.meta.url === ...)` guard at the bottom makes the file directly
- *    runnable too (e.g. via `tsx src/ingest/index.ts` or `tsx src/ingest/index.ts --out
- *    file.json`), for manual verification without waiting on the CLI task.
+ * `runIngest()` is a pure library function: no `process.exit`/`process.exitCode` side
+ * effects, safe to import from a CLI wrapper (`cli/ingest.ts`) or a test.
  */
-
-type SourceName = 'thriftly' | 'secondlook' | 'reloop';
-
-const SOURCE_NAMES: readonly SourceName[] = ['thriftly', 'secondlook', 'reloop'];
-
-/** Directory this module lives in — used to derive the default fixtures root. */
-const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
-
-/**
- * Default fixtures root: `<repo root>/fixtures`.
- * This file lives at `packages/core/src/ingest/`, so the repo root is four levels up
- * (ingest -> src -> core -> packages -> repo root) — same depth/derivation as
- * `score/visionClient.ts`'s `DEFAULT_FIXTURES_ROOT`.
- */
-export const DEFAULT_FIXTURES_ROOT = path.resolve(MODULE_DIR, '../../../../fixtures');
 
 export interface IngestFailure {
   /** Fixtures-root-relative path of the file that failed, e.g. "thriftly/listing-004-invalid.json". */
@@ -70,7 +52,7 @@ function describeError(err: unknown): string {
 }
 
 /** Dispatches a single listing file to its source's parser, then normalizes the result. */
-async function parseAndNormalize(source: SourceName, filePath: string): Promise<NormalizedListing> {
+async function parseAndNormalize(source: Source, filePath: string): Promise<NormalizedListing> {
   switch (source) {
     case 'thriftly': {
       const raw = await parseThriftlyListing(filePath);
@@ -110,7 +92,7 @@ export async function runIngest(fixturesRoot: string = DEFAULT_FIXTURES_ROOT): P
   const succeeded: NormalizedListing[] = [];
   const failed: IngestFailure[] = [];
 
-  for (const source of SOURCE_NAMES) {
+  for (const source of SOURCES) {
     const sourceDir = path.join(fixturesRoot, source);
     const fileNames = await listSourceFiles(sourceDir);
 
@@ -132,27 +114,4 @@ export async function runIngest(fixturesRoot: string = DEFAULT_FIXTURES_ROOT): P
   }
 
   return { succeeded, failed };
-}
-
-// --- Directly-runnable entry point -----------------------------------------------------
-// Only active when this file is executed directly (e.g. `tsx src/ingest/index.ts`), not
-// when imported by another module (the CLI wrapper, tests, etc.).
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const outIndex = process.argv.indexOf('--out');
-  const outPath = outIndex !== -1 ? process.argv[outIndex + 1] : undefined;
-
-  runIngest(DEFAULT_FIXTURES_ROOT)
-    .then(async ({ succeeded, failed }) => {
-      const json = JSON.stringify(succeeded, null, 2);
-      if (outPath) {
-        await writeFile(outPath, `${json}\n`, 'utf-8');
-      } else {
-        console.log(json);
-      }
-      process.exitCode = failed.length > 0 ? 1 : 0;
-    })
-    .catch((err) => {
-      console.error('ingest failed:', err);
-      process.exitCode = 1;
-    });
 }

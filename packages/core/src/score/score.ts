@@ -1,17 +1,7 @@
-import type { NodeSQLiteDatabase } from 'drizzle-orm/node-sqlite';
 import { listings, scores } from '../db/schema.js';
+import type { AppDb } from '../db/types.js';
 import type { NormalizedListing } from '../schema/normalized.js';
 import { scoreImage } from './visionClient.js';
-
-/**
- * Score-stage orchestrator.
- *
- * Type-only reference to the drizzle db shape — deliberately not importing
- * `../db/client.js` (which opens/creates a SQLite file as a module-load side
- * effect) so this module stays testable against a caller-supplied in-memory
- * or temp-file database instead of the real `DATABASE_URL`.
- */
-export type ScoreDb = NodeSQLiteDatabase;
 
 /**
  * Scores a single normalized listing's image via the vision client, then
@@ -24,7 +14,7 @@ export type ScoreDb = NodeSQLiteDatabase;
  * own default (`<repo root>/fixtures`, derived from its own module location).
  */
 export async function scoreListing(
-  db: ScoreDb,
+  db: AppDb,
   listing: NormalizedListing,
   fixturesRoot?: string,
 ): Promise<void> {
@@ -46,20 +36,18 @@ export async function scoreListing(
     description: listing.description ?? null,
   };
 
+  // Every column except the three identity fields (id, source, sourceListingId — the
+  // upsert's own conflict target) is updatable on a re-score. Destructuring them out and
+  // updating with everything else means adding a new listing field can't silently miss
+  // this list the way a hand-restated one could.
+  const { id: _id, source: _source, sourceListingId: _sourceListingId, ...updatable } = listingValues;
+
   await db
     .insert(listings)
     .values(listingValues)
     .onConflictDoUpdate({
       target: [listings.source, listings.sourceListingId],
-      set: {
-        title: listingValues.title,
-        priceCents: listingValues.priceCents,
-        category: listingValues.category,
-        imagePath: listingValues.imagePath,
-        sourceUrl: listingValues.sourceUrl,
-        postedAt: listingValues.postedAt,
-        description: listingValues.description,
-      },
+      set: updatable,
     });
 
   await db.insert(scores).values({

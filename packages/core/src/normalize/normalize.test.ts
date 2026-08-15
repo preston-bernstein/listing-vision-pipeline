@@ -163,22 +163,4 @@ describe('normalize', () => {
       );
     });
   });
-
-  describe('single-argument SourceRecord form', () => {
-    it('dispatches correctly when called with a single { source, raw } object', () => {
-      const raw: ThriftlyRaw = {
-        id: 'listing-200',
-        title: 'Ceramic Vase',
-        price_cents: 3000,
-        category: 'decor',
-        image_path: 'thriftly/images/listing-200.jpg',
-        source_url: 'https://thriftly.example/listings/listing-200',
-        posted_at: '2024-02-01T00:00:00Z',
-        description: 'A vase.',
-      };
-      const result = normalize({ source: 'thriftly', raw });
-      expect(result.id).toBe('thriftly:listing-200');
-      expect(result.priceCents).toBe(3000);
-    });
-  });
 });

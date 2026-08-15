@@ -3,8 +3,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import { runIngest, DEFAULT_FIXTURES_ROOT } from './index.js';
+import { runIngest } from './index.js';
 import { NormalizedListingSchema } from '../schema/normalized.js';
+import { DEFAULT_FIXTURES_ROOT } from '../fixturesRoot.js';
 
 describe('runIngest', () => {
   let fetchSpy: ReturnType<typeof vi.spyOn> | undefined;
