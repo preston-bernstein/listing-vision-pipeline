@@ -1,0 +1,93 @@
+{
+ "_reason": "Existing over-limit functions accepted on 2026-11-13; new code must stay within the limits. Fix them when touched.",
+ "functions": {
+  "packages/core/src/alert/alert.test.ts::(anonymous)": {
+   "nd": 0,
+   "length": 108,
+   "param": 0,
+   "ccn": 1,
+   "nloc": 10,
+   "token": 78
+  },
+  "packages/core/src/alert/sendAlert.ts::sendAlert": {
+   "param": 4,
+   "ccn": 8,
+   "nd": 0,
+   "length": 64,
+   "nloc": 52,
+   "token": 352
+  },
+  "packages/core/src/ingest/ingest.test.ts::(anonymous)": {
+   "nd": 0,
+   "length": 58,
+   "param": 0,
+   "ccn": 1,
+   "nloc": 9,
+   "token": 69
+  },
+  "packages/core/src/normalize/normalize.test.ts::(anonymous)": {
+   "nd": 0,
+   "length": 160,
+   "param": 0,
+   "ccn": 1,
+   "nloc": 21,
+   "token": 144
+  },
+  "packages/core/src/rank/rank.test.ts::(anonymous)": {
+   "param": 0,
+   "ccn": 1,
+   "nd": 0,
+   "length": 78,
+   "nloc": 8,
+   "token": 60
+  },
+  "packages/core/src/score/score.test.ts::(anonymous)": {
+   "param": 0,
+   "ccn": 1,
+   "nd": 0,
+   "length": 81,
+   "nloc": 8,
+   "token": 59
+  },
+  "packages/core/src/score/visionClient.test.ts::(anonymous)": {
+   "param": 0,
+   "ccn": 1,
+   "nd": 0,
+   "length": 115,
+   "nloc": 16,
+   "token": 149
+  },
+  "packages/dashboard/client/src/App.test.tsx::(anonymous)": {
+   "param": 0,
+   "ccn": 1,
+   "nd": 0,
+   "length": 71,
+   "nloc": 7,
+   "token": 57
+  },
+  "packages/dashboard/client/src/App.tsx::App": {
+   "param": 0,
+   "ccn": 3,
+   "nd": 0,
+   "length": 79,
+   "nloc": 27,
+   "token": 113
+  },
+  "packages/dashboard/e2e/dashboard.spec.ts::(anonymous)": {
+   "param": 0,
+   "ccn": 1,
+   "nd": 0,
+   "length": 62,
+   "nloc": 14,
+   "token": 62
+  },
+  "packages/dashboard/server/server.test.ts::(anonymous)": {
+   "param": 0,
+   "ccn": 1,
+   "nd": 0,
+   "length": 57,
+   "nloc": 6,
+   "token": 46
+  }
+ }
+}
