@@ -1,0 +1,8 @@
+{
+  "threshold": 3,
+  "minTokens": 50,
+  "minLines": 5,
+  "ignore": ["**/node_modules/**", "**/vendor/**", "**/dist/**", "**/build/**", "**/target/**", "**/.venv/**", "**/generated/**", "**/*.min.js", "**/*.lock"],
+  "gitignore": true,
+  "silent": true
+}
