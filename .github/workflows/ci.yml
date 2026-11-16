@@ -27,6 +27,9 @@ jobs:
       checks: |
         npm run check:secrets
 
+  workflows:
+    uses: preston-bernstein/ci-workflows/.github/workflows/actions-lint.yml@980585f4e9c3c1ef982cb934e153f925121fe0c0 # v1
+
   gates:
     runs-on: ubuntu-latest
     timeout-minutes: 20
