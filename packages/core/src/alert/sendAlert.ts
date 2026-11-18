@@ -20,6 +20,66 @@ function sanitizeIdForFilename(id: string): string {
   return id.replace(/:/g, '__');
 }
 
+async function hasAlert(db: AppDb, listingId: string): Promise<boolean> {
+  const existing = await db
+    .select({ id: alerts.id })
+    .from(alerts)
+    .where(eq(alerts.listingId, listingId))
+    .limit(1);
+  return existing.length > 0;
+}
+
+async function postToTelegram(
+  listingId: string,
+  payload: TelegramAlertPayload,
+  telegramBotToken: string | undefined,
+): Promise<void> {
+  const response = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (response.ok) return;
+  const body = await response.text().catch(() => '<unreadable response body>');
+  throw new Error(
+    `alert: Telegram send failed for ${listingId} with status ${response.status}: ${body}`,
+  );
+}
+
+async function persistAlert(
+  db: AppDb,
+  listingId: string,
+  payload: TelegramAlertPayload,
+  isLiveSend: boolean,
+): Promise<void> {
+  const outputDir = path.resolve(ALERTS_OUTPUT_DIR);
+  const outputPath = path.join(outputDir, `${sanitizeIdForFilename(listingId)}.json`);
+
+  try {
+    fs.mkdirSync(outputDir, { recursive: true });
+    fs.writeFileSync(outputPath, JSON.stringify(payload, null, 2));
+
+    await db.insert(alerts).values({
+      listingId,
+      payloadJson: JSON.stringify(payload),
+      dryRun: isLiveSend ? 0 : 1,
+    });
+  } catch (err) {
+    if (isLiveSend) {
+      // Sending first closes the "row written, send lost" gap by sending first —
+      // but it opens the inverse one: the Telegram message was already delivered, and
+      // a failure here (disk full, DB error) means the alerts row/output file never
+      // land, so the idempotency check above won't see this listing as already-sent
+      // and a future run WILL re-send it. Loud on purpose: this is a real duplicate-
+      // send risk, not a routine retry-safe failure.
+      console.error(
+        `alert: ${listingId} was sent to Telegram but failed to persist — a future run WILL RE-SEND it: ${(err as Error).message}`,
+      );
+    }
+    throw err;
+  }
+}
+
 /**
  * Sends (or dry-run-records) a Telegram alert for a listing.
  *
@@ -42,61 +102,16 @@ export async function sendAlert(
   payload: TelegramAlertPayload,
   opts: SendAlertOptions,
 ): Promise<void> {
-  const existing = await db
-    .select({ id: alerts.id })
-    .from(alerts)
-    .where(eq(alerts.listingId, listing.id))
-    .limit(1);
-
-  if (existing.length > 0) {
+  if (await hasAlert(db, listing.id)) {
     console.error(`alert: ${listing.id} already alerted, skipping`);
     return;
   }
 
   if (opts.liveSend) {
-    const response = await fetch(
-      `https://api.telegram.org/bot${opts.telegramBotToken}/sendMessage`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      },
-    );
-    if (!response.ok) {
-      const body = await response.text().catch(() => '<unreadable response body>');
-      throw new Error(
-        `alert: Telegram send failed for ${listing.id} with status ${response.status}: ${body}`,
-      );
-    }
+    await postToTelegram(listing.id, payload, opts.telegramBotToken);
   }
 
-  const sanitizedId = sanitizeIdForFilename(listing.id);
-  const outputDir = path.resolve(ALERTS_OUTPUT_DIR);
-  const outputPath = path.join(outputDir, `${sanitizedId}.json`);
-
-  try {
-    fs.mkdirSync(outputDir, { recursive: true });
-    fs.writeFileSync(outputPath, JSON.stringify(payload, null, 2));
-
-    await db.insert(alerts).values({
-      listingId: listing.id,
-      payloadJson: JSON.stringify(payload),
-      dryRun: opts.liveSend ? 0 : 1,
-    });
-  } catch (err) {
-    if (opts.liveSend) {
-      // The reorder above closes the "row written, send lost" gap by sending first —
-      // but it opens the inverse one: the Telegram message was already delivered, and
-      // a failure here (disk full, DB error) means the alerts row/output file never
-      // land, so the idempotency check above won't see this listing as already-sent
-      // and a future run WILL re-send it. Loud on purpose: this is a real duplicate-
-      // send risk, not a routine retry-safe failure.
-      console.error(
-        `alert: ${listing.id} was sent to Telegram but failed to persist — a future run WILL RE-SEND it: ${(err as Error).message}`,
-      );
-    }
-    throw err;
-  }
+  await persistAlert(db, listing.id, payload, opts.liveSend);
 
   console.error(`alert: ${listing.id} (${opts.liveSend ? 'live-send' : 'dry-run'})`);
 }

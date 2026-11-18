@@ -1,2 +1,1 @@
 CORE_EXCLUDE=**/scripts/*-*.py  # vendored pack gate scripts (core-check, core-lizard, workflow-check), kept byte-identical to the pack
-CORE_DUP_THRESHOLD=3.2  # vendored pack Vale style files and the CI tool lockfile add clones; today is 3.13%

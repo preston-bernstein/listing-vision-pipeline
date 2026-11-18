@@ -1,17 +1,8 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { drizzle } from 'drizzle-orm/node-sqlite';
-import { migrate } from 'drizzle-orm/node-sqlite/migrator';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// `node:sqlite`-only builtins (no bare, unprefixed alias) trip up this
-// project's Vite/vitest version's static-import builtin detection when
-// imported the normal way from a source file (not from node_modules, which
-// is externalized and unaffected). `process.getBuiltinModule` sidesteps
-// module resolution entirely and works reliably under vitest.
-const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
 import { listings, scores } from '../db/schema.js';
 import type { NormalizedListing } from '../schema/normalized.js';
+import { createTestDb } from '../db/testDb.js';
 import type { AppDb } from '../db/types.js';
 
 // Mock the vision client module entirely so `scoreListing` never issues a real
@@ -25,18 +16,6 @@ vi.mock('./visionClient.js', () => ({
 // resolves against.
 const { scoreImage } = await import('./visionClient.js');
 const { scoreListing } = await import('./score.js');
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_FOLDER = path.resolve(__dirname, '../../drizzle');
-
-/** Builds a fresh, isolated in-memory SQLite database with migrations applied. */
-function createTestDb(): AppDb {
-  const sqlite = new DatabaseSync(':memory:');
-  sqlite.exec('PRAGMA foreign_keys = ON');
-  const db = drizzle({ client: sqlite });
-  migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-  return db as unknown as AppDb;
-}
 
 function buildListing(overrides: Partial<NormalizedListing> = {}): NormalizedListing {
   return {
@@ -54,6 +33,52 @@ function buildListing(overrides: Partial<NormalizedListing> = {}): NormalizedLis
   };
 }
 
+/** Scores `listing` with the vision client mocked to return `score`. */
+async function scoreWith(db: AppDb, score: number, listing: NormalizedListing): Promise<void> {
+  vi.mocked(scoreImage).mockResolvedValueOnce(score);
+  await scoreListing(db, listing);
+}
+
+async function expectOneListing(db: AppDb, expected: Partial<typeof listings.$inferSelect>): Promise<void> {
+  const listingRows = await db.select().from(listings);
+  expect(listingRows).toHaveLength(1);
+  expect(listingRows[0]).toMatchObject(expected);
+}
+
+async function expectFirstCallStored(db: AppDb): Promise<void> {
+  await expectOneListing(db, {
+    id: 'thriftly:abc123',
+    source: 'thriftly',
+    title: 'Vintage lamp',
+    priceCents: 2500,
+    // A defined category/description must be stored verbatim, not coerced to null —
+    // only an absent (undefined) value should ever become a stored null (see the
+    // "stores null for optional fields" test below).
+    category: 'home',
+    description: 'A nice lamp.',
+  });
+
+  const scoreRows = await db.select().from(scores);
+  expect(scoreRows).toHaveLength(1);
+  expect(scoreRows[0]).toMatchObject({
+    listingId: 'thriftly:abc123',
+    score: 75,
+  });
+  expect(JSON.parse(scoreRows[0].rawResponse as string)).toEqual({ score: 75 });
+}
+
+async function expectUpsertedWithHistory(db: AppDb): Promise<void> {
+  await expectOneListing(db, {
+    id: 'thriftly:abc123',
+    title: 'Vintage lamp (price drop)',
+    priceCents: 2000,
+  });
+
+  const scoreRows = await db.select().from(scores);
+  expect(scoreRows).toHaveLength(2);
+  expect(scoreRows.map((r) => r.score).sort()).toEqual([75, 90]);
+}
+
 describe('scoreListing', () => {
   let db: AppDb;
   let fetchSpy: ReturnType<typeof vi.spyOn>;
@@ -67,32 +92,10 @@ describe('scoreListing', () => {
   });
 
   it('inserts a listings row and a scores row on first call', async () => {
-    vi.mocked(scoreImage).mockResolvedValueOnce(75);
-
     const listing = buildListing();
-    await scoreListing(db, listing);
+    await scoreWith(db, 75, listing);
 
-    const listingRows = await db.select().from(listings);
-    expect(listingRows).toHaveLength(1);
-    expect(listingRows[0]).toMatchObject({
-      id: 'thriftly:abc123',
-      source: 'thriftly',
-      title: 'Vintage lamp',
-      priceCents: 2500,
-      // A defined category/description must be stored verbatim, not coerced to null —
-      // only an absent (undefined) value should ever become a stored null (see the
-      // "stores null for optional fields" test below).
-      category: 'home',
-      description: 'A nice lamp.',
-    });
-
-    const scoreRows = await db.select().from(scores);
-    expect(scoreRows).toHaveLength(1);
-    expect(scoreRows[0]).toMatchObject({
-      listingId: 'thriftly:abc123',
-      score: 75,
-    });
-    expect(JSON.parse(scoreRows[0].rawResponse as string)).toEqual({ score: 75 });
+    await expectFirstCallStored(db);
 
     expect(scoreImage).toHaveBeenCalledTimes(1);
     expect(scoreImage).toHaveBeenCalledWith(listing.imagePath, undefined);
@@ -100,10 +103,8 @@ describe('scoreListing', () => {
   });
 
   it('stores null for optional category/description fields when the listing omits them', async () => {
-    vi.mocked(scoreImage).mockResolvedValueOnce(60);
-
     const listing = buildListing({ category: undefined, description: undefined });
-    await scoreListing(db, listing);
+    await scoreWith(db, 60, listing);
 
     const [row] = await db.select().from(listings);
     expect(row.category).toBeNull();
@@ -111,25 +112,10 @@ describe('scoreListing', () => {
   });
 
   it('upserts listings (still 1 row) and accumulates scores history on a second call', async () => {
-    vi.mocked(scoreImage).mockResolvedValueOnce(75);
-    const first = buildListing();
-    await scoreListing(db, first);
+    await scoreWith(db, 75, buildListing());
+    await scoreWith(db, 90, buildListing({ title: 'Vintage lamp (price drop)', priceCents: 2000 }));
 
-    vi.mocked(scoreImage).mockResolvedValueOnce(90);
-    const second = buildListing({ title: 'Vintage lamp (price drop)', priceCents: 2000 });
-    await scoreListing(db, second);
-
-    const listingRows = await db.select().from(listings);
-    expect(listingRows).toHaveLength(1);
-    expect(listingRows[0]).toMatchObject({
-      id: 'thriftly:abc123',
-      title: 'Vintage lamp (price drop)',
-      priceCents: 2000,
-    });
-
-    const scoreRows = await db.select().from(scores);
-    expect(scoreRows).toHaveLength(2);
-    expect(scoreRows.map((r) => r.score).sort()).toEqual([75, 90]);
+    await expectUpsertedWithHistory(db);
 
     expect(scoreImage).toHaveBeenCalledTimes(2);
     expect(fetchSpy).not.toHaveBeenCalled();

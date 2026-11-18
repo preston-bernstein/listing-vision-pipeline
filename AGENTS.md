@@ -18,7 +18,7 @@
 - Delete dead code and unused options. Concise means fewer concepts, not shorter names.
 - A behavior change ships with a test that fails without it. Do not edit generated files; change the generator.
 - Never edit a limit or a config to make a run pass. Fix the code. A waiver goes in `.core-allow` with a reason.
-- `.core-baseline.json` lists old over-limit functions. It may only shrink.
+- There is no `.core-baseline.json`: no function is over a limit. Do not add one.
 - `scripts/core-*`, `scripts/gha-*`, `scripts/js-*`, `scripts/ts-*`, `scripts/pg-*`, `scripts/writing-*`, `scripts/vale-central.ini` and `scripts/styles` are copies of the pack files. Do not edit them.
 
 ## All gates
