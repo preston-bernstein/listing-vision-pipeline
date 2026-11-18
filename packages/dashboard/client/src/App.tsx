@@ -6,7 +6,22 @@ interface ListingsResponse {
   listings: RankedListing[];
 }
 
-export default function App() {
+interface ListingsState {
+  listings: RankedListing[];
+  loading: boolean;
+  error: string | null;
+}
+
+async function fetchListings(): Promise<RankedListing[]> {
+  const response = await fetch('/api/listings');
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+  const data = (await response.json()) as ListingsResponse;
+  return data.listings;
+}
+
+function useListings(): ListingsState {
   const [listings, setListings] = useState<RankedListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,13 +33,9 @@ export default function App() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch('/api/listings');
-        if (!response.ok) {
-          throw new Error(`Request failed with status ${response.status}`);
-        }
-        const data = (await response.json()) as ListingsResponse;
+        const loaded = await fetchListings();
         if (!cancelled) {
-          setListings(data.listings);
+          setListings(loaded);
         }
       } catch (err) {
         if (!cancelled) {
@@ -44,14 +55,10 @@ export default function App() {
     };
   }, []);
 
-  if (loading) {
-    return <p>Loading listings...</p>;
-  }
+  return { listings, loading, error };
+}
 
-  if (error) {
-    return <p role="alert">Error loading listings: {error}</p>;
-  }
-
+function ListingsTable({ listings }: { listings: RankedListing[] }) {
   return (
     <table>
       <thead>
@@ -84,4 +91,18 @@ export default function App() {
       </tbody>
     </table>
   );
+}
+
+export default function App() {
+  const { listings, loading, error } = useListings();
+
+  if (loading) {
+    return <p>Loading listings...</p>;
+  }
+
+  if (error) {
+    return <p role="alert">Error loading listings: {error}</p>;
+  }
+
+  return <ListingsTable listings={listings} />;
 }

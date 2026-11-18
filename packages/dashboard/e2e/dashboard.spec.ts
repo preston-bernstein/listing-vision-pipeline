@@ -1,4 +1,34 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+async function expectSortedByScore(page: Page): Promise<void> {
+  // Seeded by global-setup: 9 listings across 3 sources with scores
+  // 58-95. The table must actually be sorted by score descending, not
+  // just "some rows exist" — read the score column (5th <td>) and check
+  // ordering.
+  const scoreCells = page.locator('table tbody tr td:nth-child(5)');
+  await expect(scoreCells).toHaveCount(9);
+  const scores = (await scoreCells.allTextContents()).map((t) =>
+    Number(t.trim()),
+  );
+  const sorted = [...scores].sort((a, b) => b - a);
+  expect(scores).toEqual(sorted);
+}
+
+async function expectFirstThumbnailLoads(page: Page): Promise<void> {
+  // Every row's thumbnail must actually load — not a broken-image icon.
+  // Assert on the underlying HTTP response, not just that an <img> tag
+  // exists with some src attribute.
+  const firstThumb = page.locator('table tbody tr img').first();
+  await expect(firstThumb).toBeVisible();
+  const thumbSrc = await firstThumb.getAttribute('src');
+  expect(thumbSrc).toBeTruthy();
+
+  const imageResponse = await page.request.get(thumbSrc!);
+  expect(imageResponse.ok()).toBe(true);
+  expect(imageResponse.headers()['content-type']).toBe('image/jpeg');
+  const body = await imageResponse.body();
+  expect(body.length).toBeGreaterThan(0);
+}
 
 test.describe('dashboard — ranked listings', () => {
   test('loads the real API, renders a ranked table, and thumbnails resolve', async ({
@@ -9,31 +39,8 @@ test.describe('dashboard — ranked listings', () => {
     const rows = page.locator('table tbody tr');
     await expect(rows.first()).toBeVisible();
 
-    // Seeded by global-setup: 9 listings across 3 sources with scores
-    // 58-95. The table must actually be sorted by score descending, not
-    // just "some rows exist" — read the score column (5th <td>) and check
-    // ordering.
-    const scoreCells = page.locator('table tbody tr td:nth-child(5)');
-    await expect(scoreCells).toHaveCount(9);
-    const scores = (await scoreCells.allTextContents()).map((t) =>
-      Number(t.trim()),
-    );
-    const sorted = [...scores].sort((a, b) => b - a);
-    expect(scores).toEqual(sorted);
-
-    // Every row's thumbnail must actually load — not a broken-image icon.
-    // Assert on the underlying HTTP response, not just that an <img> tag
-    // exists with some src attribute.
-    const firstThumb = page.locator('table tbody tr img').first();
-    await expect(firstThumb).toBeVisible();
-    const thumbSrc = await firstThumb.getAttribute('src');
-    expect(thumbSrc).toBeTruthy();
-
-    const imageResponse = await page.request.get(thumbSrc!);
-    expect(imageResponse.ok()).toBe(true);
-    expect(imageResponse.headers()['content-type']).toBe('image/jpeg');
-    const body = await imageResponse.body();
-    expect(body.length).toBeGreaterThan(0);
+    await expectSortedByScore(page);
+    await expectFirstThumbnailLoads(page);
   });
 
   test('real API rejects an out-of-range limit with 400 — dashboard surfaces it, not a crash', async ({
