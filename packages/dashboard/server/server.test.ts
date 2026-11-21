@@ -67,6 +67,38 @@ beforeAll(async () => {
   ]);
 });
 
+/** Every entry has the public fields, and the rows are ranked by score descending. */
+function expectRankedEntries(entries: unknown[]): void {
+  for (const entry of entries) {
+    expect(entry).toEqual(
+      expect.objectContaining({
+        rank: expect.any(Number),
+        id: expect.any(String),
+        source: expect.any(String),
+        title: expect.any(String),
+        priceCents: expect.any(Number),
+        imagePath: expect.any(String),
+        score: expect.any(Number),
+      }),
+    );
+  }
+
+  // Ranked by score descending: LISTING_A (88) before LISTING_B (72).
+  expect(entries[0]).toEqual(expect.objectContaining({ id: LISTING_A.id, rank: 1, score: 88 }));
+  expect(entries[1]).toEqual(expect.objectContaining({ id: LISTING_B.id, rank: 2, score: 72 }));
+}
+
+/** GETs a path, expects 200, and proves the DB-internal raw_response column never reaches the body. */
+async function getJsonWithoutRawResponse(requestPath: string): Promise<unknown> {
+  const res = await app.request(requestPath);
+  expect(res.status).toBe(200);
+
+  const rawText = await res.text();
+  expect(rawText).not.toContain('raw_response');
+  expect(rawText).not.toContain('rawResponse');
+  return JSON.parse(rawText);
+}
+
 describe('GET /health', () => {
   it('returns 200 { ok: true }', async () => {
     const res = await app.request('/health');
@@ -77,38 +109,11 @@ describe('GET /health', () => {
 
 describe('GET /api/listings', () => {
   it('returns 200 with the expected shape and never leaks raw_response', async () => {
-    const res = await app.request('/api/listings');
-    expect(res.status).toBe(200);
-
-    const rawText = await res.text();
-    expect(rawText).not.toContain('raw_response');
-    expect(rawText).not.toContain('rawResponse');
-
-    const body = JSON.parse(rawText) as { listings: unknown[] };
+    const body = (await getJsonWithoutRawResponse('/api/listings')) as { listings: unknown[] };
     expect(Array.isArray(body.listings)).toBe(true);
     expect(body.listings.length).toBe(2);
 
-    for (const entry of body.listings) {
-      expect(entry).toEqual(
-        expect.objectContaining({
-          rank: expect.any(Number),
-          id: expect.any(String),
-          source: expect.any(String),
-          title: expect.any(String),
-          priceCents: expect.any(Number),
-          imagePath: expect.any(String),
-          score: expect.any(Number),
-        }),
-      );
-    }
-
-    // Ranked by score descending: LISTING_A (88) before LISTING_B (72).
-    expect(body.listings[0]).toEqual(
-      expect.objectContaining({ id: LISTING_A.id, rank: 1, score: 88 }),
-    );
-    expect(body.listings[1]).toEqual(
-      expect.objectContaining({ id: LISTING_B.id, rank: 2, score: 72 }),
-    );
+    expectRankedEntries(body.listings);
   });
 
   it('filters by a valid source', async () => {
@@ -135,14 +140,9 @@ describe('GET /api/listings', () => {
 
 describe('GET /api/listings/:id', () => {
   it('returns 200 with the listing and its score history for a seeded id', async () => {
-    const res = await app.request(`/api/listings/${encodeURIComponent(LISTING_A.id)}`);
-    expect(res.status).toBe(200);
-
-    const rawText = await res.text();
-    expect(rawText).not.toContain('raw_response');
-    expect(rawText).not.toContain('rawResponse');
-
-    const body = JSON.parse(rawText) as {
+    const body = (await getJsonWithoutRawResponse(
+      `/api/listings/${encodeURIComponent(LISTING_A.id)}`,
+    )) as {
       listing: { id: string; title: string };
       scores: Array<{ imagePath: string; score: number; createdAt: string }>;
     };

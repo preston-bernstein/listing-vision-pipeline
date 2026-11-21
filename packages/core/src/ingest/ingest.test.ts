@@ -7,6 +7,50 @@ import { runIngest } from './index.js';
 import { NormalizedListingSchema } from '../schema/normalized.js';
 import { DEFAULT_FIXTURES_ROOT } from '../fixturesRoot.js';
 
+type IngestResult = Awaited<ReturnType<typeof runIngest>>;
+
+function expectAllFixturesIngested(
+  succeeded: IngestResult['succeeded'],
+  failed: IngestResult['failed'],
+): void {
+  // 3 sources x 3 valid fixtures each = 9 successes.
+  expect(succeeded).toHaveLength(9);
+
+  const bySource = {
+    thriftly: succeeded.filter((l) => l.source === 'thriftly'),
+    secondlook: succeeded.filter((l) => l.source === 'secondlook'),
+    reloop: succeeded.filter((l) => l.source === 'reloop'),
+  };
+  expect(bySource.thriftly).toHaveLength(3);
+  expect(bySource.secondlook).toHaveLength(3);
+  expect(bySource.reloop).toHaveLength(3);
+
+  // The invalid Thriftly fixture (missing price_cents) must be rejected, naming the field.
+  expect(failed).toHaveLength(1);
+  const failure = failed[0];
+  expect(failure?.file).toBe('thriftly/listing-004-invalid.json');
+  expect(failure?.error).toContain('price_cents');
+
+  // Every successful record must validate against the shared normalized schema.
+  for (const listing of succeeded) {
+    expect(() => NormalizedListingSchema.parse(listing)).not.toThrow();
+  }
+}
+
+async function createScratchRoot(): Promise<string> {
+  const root = await mkdtemp(path.join(tmpdir(), 'ingest-test-'));
+  for (const source of ['thriftly', 'secondlook', 'reloop']) {
+    await mkdir(path.join(root, source), { recursive: true });
+  }
+  return root;
+}
+
+async function expectNothingIngested(root: string): Promise<void> {
+  const { succeeded, failed } = await runIngest(root);
+  expect(succeeded).toHaveLength(0);
+  expect(failed).toHaveLength(0);
+}
+
 describe('runIngest', () => {
   let fetchSpy: ReturnType<typeof vi.spyOn> | undefined;
 
@@ -23,28 +67,7 @@ describe('runIngest', () => {
   it('ingests all valid fixtures across all three sources and rejects the invalid one', async () => {
     const { succeeded, failed } = await runIngest(DEFAULT_FIXTURES_ROOT);
 
-    // 3 sources x 3 valid fixtures each = 9 successes.
-    expect(succeeded).toHaveLength(9);
-
-    const bySource = {
-      thriftly: succeeded.filter((l) => l.source === 'thriftly'),
-      secondlook: succeeded.filter((l) => l.source === 'secondlook'),
-      reloop: succeeded.filter((l) => l.source === 'reloop'),
-    };
-    expect(bySource.thriftly).toHaveLength(3);
-    expect(bySource.secondlook).toHaveLength(3);
-    expect(bySource.reloop).toHaveLength(3);
-
-    // The invalid Thriftly fixture (missing price_cents) must be rejected, naming the field.
-    expect(failed).toHaveLength(1);
-    const failure = failed[0];
-    expect(failure?.file).toBe('thriftly/listing-004-invalid.json');
-    expect(failure?.error).toContain('price_cents');
-
-    // Every successful record must validate against the shared normalized schema.
-    for (const listing of succeeded) {
-      expect(() => NormalizedListingSchema.parse(listing)).not.toThrow();
-    }
+    expectAllFixturesIngested(succeeded, failed);
 
     // Zero network calls anywhere during the run — ingest reads fixtures from local disk only.
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -66,10 +89,7 @@ describe('runIngest error and file-filtering edge cases', () => {
   let scratchRoot: string;
 
   beforeEach(async () => {
-    scratchRoot = await mkdtemp(path.join(tmpdir(), 'ingest-test-'));
-    await mkdir(path.join(scratchRoot, 'thriftly'), { recursive: true });
-    await mkdir(path.join(scratchRoot, 'secondlook'), { recursive: true });
-    await mkdir(path.join(scratchRoot, 'reloop'), { recursive: true });
+    scratchRoot = await createScratchRoot();
   });
 
   afterEach(async () => {
@@ -105,18 +125,12 @@ describe('runIngest error and file-filtering edge cases', () => {
     // entry.isFile() is true are eligible, regardless of name.
     await mkdir(path.join(scratchRoot, 'thriftly', 'decoy.json'), { recursive: true });
 
-    const { succeeded, failed } = await runIngest(scratchRoot);
-
-    expect(succeeded).toHaveLength(0);
-    expect(failed).toHaveLength(0);
+    await expectNothingIngested(scratchRoot);
   });
 
   it('ignores files whose extension is neither .json nor .html', async () => {
     await writeFile(path.join(scratchRoot, 'thriftly', 'notes.txt'), 'not a listing', 'utf-8');
 
-    const { succeeded, failed } = await runIngest(scratchRoot);
-
-    expect(succeeded).toHaveLength(0);
-    expect(failed).toHaveLength(0);
+    await expectNothingIngested(scratchRoot);
   });
 });

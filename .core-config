@@ -1,0 +1,1 @@
+CORE_EXCLUDE=**/scripts/*-*.py  # vendored pack gate scripts (core-check, core-lizard, workflow-check), kept byte-identical to the pack

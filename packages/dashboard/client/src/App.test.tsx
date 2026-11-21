@@ -47,74 +47,81 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+function renderCases(): void {
+it('shows a loading state before the fetch resolves', async () => {
+  let resolveFetch: (value: Response) => void = () => {};
+  fetchMock.mockReturnValue(
+    new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    }),
+  );
+
+  render(<App />);
+  expect(screen.getByText(/loading listings/i)).toBeTruthy();
+
+  resolveFetch(jsonResponse({ listings: LISTINGS_FIXTURE }));
+  await waitFor(() => expect(screen.queryByText(/loading listings/i)).toBeNull());
+});
+
+it('renders the expected table rows and columns once loaded', async () => {
+  fetchMock.mockResolvedValue(jsonResponse({ listings: LISTINGS_FIXTURE }));
+
+  render(<App />);
+
+  await waitFor(() => expect(screen.getByRole('table')).toBeTruthy());
+
+  for (const header of ['Rank', 'Source', 'Title', 'Price', 'Score', 'Thumbnail']) {
+    expect(screen.getByText(header)).toBeTruthy();
+  }
+
+  // 1 header row + 2 data rows.
+  expect(screen.getAllByRole('row')).toHaveLength(3);
+
+  expect(screen.getByText('Vintage Oak Bookshelf')).toBeTruthy();
+  expect(screen.getByText('Brass Floor Mirror')).toBeTruthy();
+  expect(screen.getByText('$125.00')).toBeTruthy();
+  expect(screen.getByText('$145.00')).toBeTruthy();
+  expect(screen.getByText('88')).toBeTruthy();
+  expect(screen.getByText('72')).toBeTruthy();
+});
+}
+
+function requestCases(): void {
+it('shows an error state when the fetch rejects', async () => {
+  fetchMock.mockRejectedValue(new Error('network down'));
+
+  render(<App />);
+
+  await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+  expect(screen.getByRole('alert').textContent).toContain('network down');
+});
+
+it('shows an error state when the fetch resolves non-ok', async () => {
+  fetchMock.mockResolvedValue(jsonResponse({}, { ok: false, status: 500 }));
+
+  render(<App />);
+
+  await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+  expect(screen.getByRole('alert').textContent).toContain('500');
+});
+
+it('never issues a mutating fetch call — every call is a plain GET', async () => {
+  fetchMock.mockResolvedValue(jsonResponse({ listings: LISTINGS_FIXTURE }));
+
+  render(<App />);
+  await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+
+  expect(fetchMock.mock.calls.length).toBeGreaterThan(0);
+  for (const call of fetchMock.mock.calls) {
+    const init = call[1] as RequestInit | undefined;
+    const method = init?.method;
+    // No explicit method (defaults to GET) or an explicit 'GET' — never POST/PUT/PATCH/DELETE.
+    expect(method === undefined || method.toUpperCase() === 'GET').toBe(true);
+  }
+});
+}
+
 describe('<App />', () => {
-  it('shows a loading state before the fetch resolves', async () => {
-    let resolveFetch: (value: Response) => void = () => {};
-    fetchMock.mockReturnValue(
-      new Promise<Response>((resolve) => {
-        resolveFetch = resolve;
-      }),
-    );
-
-    render(<App />);
-    expect(screen.getByText(/loading listings/i)).toBeTruthy();
-
-    resolveFetch(jsonResponse({ listings: LISTINGS_FIXTURE }));
-    await waitFor(() => expect(screen.queryByText(/loading listings/i)).toBeNull());
-  });
-
-  it('renders the expected table rows and columns once loaded', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ listings: LISTINGS_FIXTURE }));
-
-    render(<App />);
-
-    await waitFor(() => expect(screen.getByRole('table')).toBeTruthy());
-
-    for (const header of ['Rank', 'Source', 'Title', 'Price', 'Score', 'Thumbnail']) {
-      expect(screen.getByText(header)).toBeTruthy();
-    }
-
-    // 1 header row + 2 data rows.
-    expect(screen.getAllByRole('row')).toHaveLength(3);
-
-    expect(screen.getByText('Vintage Oak Bookshelf')).toBeTruthy();
-    expect(screen.getByText('Brass Floor Mirror')).toBeTruthy();
-    expect(screen.getByText('$125.00')).toBeTruthy();
-    expect(screen.getByText('$145.00')).toBeTruthy();
-    expect(screen.getByText('88')).toBeTruthy();
-    expect(screen.getByText('72')).toBeTruthy();
-  });
-
-  it('shows an error state when the fetch rejects', async () => {
-    fetchMock.mockRejectedValue(new Error('network down'));
-
-    render(<App />);
-
-    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
-    expect(screen.getByRole('alert').textContent).toContain('network down');
-  });
-
-  it('shows an error state when the fetch resolves non-ok', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({}, { ok: false, status: 500 }));
-
-    render(<App />);
-
-    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
-    expect(screen.getByRole('alert').textContent).toContain('500');
-  });
-
-  it('never issues a mutating fetch call — every call is a plain GET', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ listings: LISTINGS_FIXTURE }));
-
-    render(<App />);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-
-    expect(fetchMock.mock.calls.length).toBeGreaterThan(0);
-    for (const call of fetchMock.mock.calls) {
-      const init = call[1] as RequestInit | undefined;
-      const method = init?.method;
-      // No explicit method (defaults to GET) or an explicit 'GET' — never POST/PUT/PATCH/DELETE.
-      expect(method === undefined || method.toUpperCase() === 'GET').toBe(true);
-    }
-  });
+  renderCases();
+  requestCases();
 });

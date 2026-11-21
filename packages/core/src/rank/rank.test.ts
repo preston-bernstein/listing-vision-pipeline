@@ -1,30 +1,8 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { drizzle } from 'drizzle-orm/node-sqlite';
-import { migrate } from 'drizzle-orm/node-sqlite/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { listings, scores } from '../db/schema.js';
 import { getRankedListings } from './rank.js';
+import { createTestDb } from '../db/testDb.js';
 import type { AppDb } from '../db/types.js';
-
-// `node:sqlite`-only builtins (no bare, unprefixed alias) trip up this
-// project's Vite/vitest version's static-import builtin detection when
-// imported the normal way from a source file (not from node_modules, which
-// is externalized and unaffected). `process.getBuiltinModule` sidesteps
-// module resolution entirely and works reliably under vitest.
-const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_FOLDER = path.resolve(__dirname, '../../drizzle');
-
-/** Builds a fresh, isolated in-memory SQLite database with migrations applied. */
-function createTestDb(): AppDb {
-  const sqlite = new DatabaseSync(':memory:');
-  sqlite.exec('PRAGMA foreign_keys = ON');
-  const db = drizzle({ client: sqlite });
-  migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-  return db as unknown as AppDb;
-}
 
 interface SeedListing {
   id: string;
@@ -49,51 +27,48 @@ async function seedScore(db: AppDb, listingId: string, score: number): Promise<v
   });
 }
 
+interface RankFixture {
+  source: SeedListing['source'];
+  key: string;
+  title: string;
+  priceCents: number;
+  postedAt: string;
+  scores: number[];
+}
+
+// l1: single low score. l2: several scores, the best (max) must win, not the average or latest.
+// l3: single mid score.
+const RANK_FIXTURES: RankFixture[] = [
+  { source: 'thriftly', key: 'l1', title: 'Low score item', priceCents: 1000, postedAt: '2026-01-01T00:00:00.000Z', scores: [50] },
+  { source: 'secondlook', key: 'l2', title: 'Multi-scored item', priceCents: 2000, postedAt: '2026-01-02T00:00:00.000Z', scores: [40, 95] },
+  { source: 'reloop', key: 'l3', title: 'Mid score item', priceCents: 3000, postedAt: '2026-01-03T00:00:00.000Z', scores: [70] },
+];
+
+async function seedRankFixture(db: AppDb): Promise<void> {
+  for (const fixture of RANK_FIXTURES) {
+    const id = `${fixture.source}:${fixture.key}`;
+    await seedListing(db, {
+      id,
+      source: fixture.source,
+      title: fixture.title,
+      priceCents: fixture.priceCents,
+      imagePath: `${fixture.source}/${fixture.key}.jpg`,
+      sourceListingId: fixture.key,
+      sourceUrl: `https://example.com/${fixture.key}`,
+      postedAt: fixture.postedAt,
+    });
+    for (const score of fixture.scores) {
+      await seedScore(db, id, score);
+    }
+  }
+}
+
 describe('getRankedListings', () => {
   let db: AppDb;
 
   beforeEach(async () => {
     db = createTestDb();
-
-    // L1: single low score.
-    await seedListing(db, {
-      id: 'thriftly:l1',
-      source: 'thriftly',
-      title: 'Low score item',
-      priceCents: 1000,
-      imagePath: 'thriftly/l1.jpg',
-      sourceListingId: 'l1',
-      sourceUrl: 'https://example.com/l1',
-      postedAt: '2026-01-01T00:00:00.000Z',
-    });
-    await seedScore(db, 'thriftly:l1', 50);
-
-    // L2: multiple scores — best (max) should win, not the average or latest.
-    await seedListing(db, {
-      id: 'secondlook:l2',
-      source: 'secondlook',
-      title: 'Multi-scored item',
-      priceCents: 2000,
-      imagePath: 'secondlook/l2.jpg',
-      sourceListingId: 'l2',
-      sourceUrl: 'https://example.com/l2',
-      postedAt: '2026-01-02T00:00:00.000Z',
-    });
-    await seedScore(db, 'secondlook:l2', 40);
-    await seedScore(db, 'secondlook:l2', 95);
-
-    // L3: single mid score.
-    await seedListing(db, {
-      id: 'reloop:l3',
-      source: 'reloop',
-      title: 'Mid score item',
-      priceCents: 3000,
-      imagePath: 'reloop/l3.jpg',
-      sourceListingId: 'l3',
-      sourceUrl: 'https://example.com/l3',
-      postedAt: '2026-01-03T00:00:00.000Z',
-    });
-    await seedScore(db, 'reloop:l3', 70);
+    await seedRankFixture(db);
   });
 
   it('orders listings by score descending', async () => {
